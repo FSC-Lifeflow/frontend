@@ -8,6 +8,7 @@ import { Onboarding } from "./components/Onboarding";
 import { Dashboard } from "./components/Dashboard";
 import { Navigation } from "./components/Navigation";
 import { useIsMobile } from "./hooks/use-mobile";
+import Landing from "./pages/Landing";
 import Profile from "./pages/Profile";
 import Social from "./pages/Social";
 import Settings from "./pages/Settings";
@@ -39,18 +40,26 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <div className="flex min-h-screen w-full">
-            <Navigation />
-            <main className={`flex-1 ${!isMobile ? 'ml-64' : 'mt-16 mb-16'}`}>
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/social" element={<Social />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </main>
-          </div>
+          <Routes>
+            {/* Landing page route - no navigation */}
+            <Route path="/landing" element={<Landing />} />
+            
+            {/* App routes with navigation */}
+            <Route path="/*" element={
+              <div className="flex min-h-screen w-full">
+                <Navigation />
+                <main className={`flex-1 ${!isMobile ? 'ml-64' : 'mt-16 mb-16'}`}>
+                  <Routes>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/social" element={<Social />} />
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </main>
+              </div>
+            } />
+          </Routes>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
