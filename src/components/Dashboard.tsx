@@ -1,6 +1,7 @@
 import { WellnessLayout } from "./WellnessLayout";
 import { WellnessCard } from "./WellnessCard";
 import { CaloriesChart } from "./CaloriesChart";
+import { GoogleCalendar } from "./GoogleCalendar";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -110,24 +111,15 @@ export function Dashboard() {
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-semibold flex items-center gap-2">
                   <Calendar className="w-5 h-5 text-primary" />
-                  Full Calendar View
+                  Calendar Integration
                 </h2>
-                <Button variant="zen" size="sm">
+                <Button variant="zen" size="sm" onClick={() => window.open('https://calendar.google.com', '_blank')}>
                   <ExternalLink className="w-4 h-4 mr-2" />
                   Open in Google
                 </Button>
               </div>
 
-              <div className="bg-muted/30 rounded-lg p-6 text-center">
-                <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Calendar className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="font-semibold mb-2">Google Calendar Integration</h3>
-                <p className="text-muted-foreground mb-4">
-                  View all your events, meetings, and AI-scheduled workouts in one place
-                </p>
-                <Button variant="wellness">Connect Google Calendar</Button>
-              </div>
+              <GoogleCalendar />
             </WellnessCard>
 
             {/* Weekly Calories Chart */}
