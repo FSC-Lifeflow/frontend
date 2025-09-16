@@ -30,7 +30,7 @@ export interface GoogleCalendarState {
 
 // Google Calendar API configuration
 const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest';
-const SCOPES = 'https://www.googleapis.com/auth/calendar.app.created';
+const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly';
 
 declare global {
   interface Window {
@@ -169,6 +169,7 @@ export function useGoogleCalendar() {
         isLoading: false 
       }));
     } catch (error) {
+      console.log("ERROR", error);
       setState(prev => ({ 
         ...prev, 
         error: error instanceof Error ? error.message : 'Failed to fetch events',
