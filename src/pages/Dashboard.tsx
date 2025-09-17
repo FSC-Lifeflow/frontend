@@ -2,6 +2,7 @@ import { WellnessLayout } from "../components/WellnessLayout";
 import { WellnessCard } from "../components/WellnessCard";
 import { CaloriesChart } from "../components/CaloriesChart";
 import { GoogleCalendar } from "../components/GoogleCalendar";
+import { FitbitData } from "../components/FitbitData";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -59,7 +60,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main content area */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Today's Progress */}
+            {/* Fitbit Health Data */}
             <WellnessCard className="animate-fade-in">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold flex items-center gap-2">
@@ -71,39 +72,7 @@ export default function Dashboard() {
                 </Badge>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center">
-                  <div className="mb-2">
-                    <Progress value={(todayStats.steps / todayStats.stepGoal) * 100} className="h-2" />
-                  </div>
-                  <p className="text-2xl font-bold text-primary">{todayStats.steps.toLocaleString()}</p>
-                  <p className="text-sm text-muted-foreground">of {todayStats.stepGoal.toLocaleString()} steps</p>
-                </div>
-
-                <div className="text-center">
-                  <div className="mb-2">
-                    <Progress value={(todayStats.calories / todayStats.calorieGoal) * 100} className="h-2" />
-                  </div>
-                  <p className="text-2xl font-bold text-secondary">{todayStats.calories}</p>
-                  <p className="text-sm text-muted-foreground">of {todayStats.calorieGoal} calories</p>
-                </div>
-
-                <div className="text-center">
-                  <div className="mb-2">
-                    <Progress value={(todayStats.workoutTime / todayStats.workoutGoal) * 100} className="h-2" />
-                  </div>
-                  <p className="text-2xl font-bold text-primary">{todayStats.workoutTime}m</p>
-                  <p className="text-sm text-muted-foreground">of {todayStats.workoutGoal}m active</p>
-                </div>
-
-                <div className="text-center">
-                  <div className="mb-2">
-                    <Progress value={(todayStats.sleepHours / todayStats.sleepGoal) * 100} className="h-2" />
-                  </div>
-                  <p className="text-2xl font-bold text-primary">{todayStats.sleepHours}h</p>
-                  <p className="text-sm text-muted-foreground">of {todayStats.sleepGoal}h sleep</p>
-                </div>
-              </div>
+              <FitbitData />
             </WellnessCard>
 
             {/* Google Calendar Integration */}
