@@ -16,6 +16,8 @@ import Settings from "./pages/Settings";
 import Landing from "./pages/Landing";
 import Register from "./pages/Register";
 import SignIn from "./pages/SignIn";
+import AuthCallback from "./pages/AuthCallback";
+import CompleteProfile from "./pages/CompleteProfile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -42,6 +44,7 @@ const AppContent = () => {
           <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Landing />} />
           <Route path="/register" element={!user ? <Register /> : <Navigate to="/dashboard" replace />} />
           <Route path="/signin" element={!user ? <SignIn /> : <Navigate to="/dashboard" replace />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
           
           {/* Protected routes */}
           <Route element={<ProtectedRoute redirectPath="/" />}>
@@ -49,6 +52,7 @@ const AppContent = () => {
             <Route path="/profile" element={<Profile />} />
             <Route path="/social" element={<Social />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/complete-profile" element={<CompleteProfile />} />
           </Route>
           
           <Route path="*" element={<NotFound />} />

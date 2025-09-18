@@ -15,6 +15,7 @@ type AuthContextType = {
   loading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   register: (userData: {
     username: string;
     firstName: string;
@@ -63,6 +64,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const loginWithGoogle = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { user, token } = await authService.loginWithGoogle();
+      localStorage.setItem('auth_token', token);
+      setUser(user);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Google login failed');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const register = async (userData: {
     username: string;
     firstName: string;
@@ -95,7 +111,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, error, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, error, login, loginWithGoogle, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

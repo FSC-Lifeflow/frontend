@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,8 +15,9 @@ const SignIn = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -47,6 +47,20 @@ const SignIn = () => {
       setError(err instanceof Error ? err.message : 'Sign in failed. Please check your credentials.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    try {
+      await loginWithGoogle();
+      console.log('✅ Google sign in successful, navigating to dashboard');
+      navigate('/dashboard');
+    } catch (err) {
+      console.error('❌ Google sign in error:', err);
+      setError(err instanceof Error ? err.message : 'Google sign in failed.');
+    } finally {
+      setIsGoogleLoading(false);
     }
   };
 
@@ -132,6 +146,17 @@ const SignIn = () => {
                   Create one here
                 </Link>
               </p>
+            </div>
+            
+            <div className="mt-6 text-center">
+              <Button 
+                type="button" 
+                className="w-full bg-white hover:bg-gray-100 text-gray-800 border border-gray-200"
+                onClick={handleGoogleSignIn}
+                disabled={isGoogleLoading}
+              >
+                {isGoogleLoading ? 'Signing in with Google...' : 'Sign In with Google'}
+              </Button>
             </div>
           </CardContent>
         </Card>

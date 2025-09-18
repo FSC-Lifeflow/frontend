@@ -21,8 +21,9 @@ const Register = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   
-  const { register } = useAuth();
+  const { register, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,6 +76,19 @@ const Register = () => {
       setError(err instanceof Error ? err.message : 'Registration failed');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    try {
+      await loginWithGoogle();
+      navigate('/dashboard');
+    } catch (err) {
+      console.error('❌ Google sign in error:', err);
+      setError(err instanceof Error ? err.message : 'Google sign in failed');
+    } finally {
+      setIsGoogleLoading(false);
     }
   };
 
@@ -221,6 +235,17 @@ const Register = () => {
                 {isLoading ? 'Creating Account...' : 'Create Account'}
               </Button>
             </form>
+            
+            <div className="mt-6 text-center">
+              <Button 
+                type="button" 
+                className="w-full bg-white hover:bg-gray-100 text-gray-800 border border-gray-200"
+                onClick={handleGoogleSignIn}
+                disabled={isGoogleLoading}
+              >
+                {isGoogleLoading ? 'Registering with Google...' : 'Register with Google'}
+              </Button>
+            </div>
             
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">

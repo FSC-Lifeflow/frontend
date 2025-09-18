@@ -109,6 +109,113 @@ export const authService = {
     }
   },
 
+  // Login with Google
+  async loginWithGoogle() {
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        }
+      });
+
+      if (error) {
+        console.error('❌ Google OAuth error:', error);
+        throw new Error(error.message);
+      }
+
+      console.log('✅ Google OAuth initiated, redirecting...');
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Handle OAuth callback (for when user returns from Google OAuth)
+  async handleOAuthCallback() {
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        throw new Error(sessionError.message);
+      }
+
+      if (!session?.user) {
+        throw new Error('No session found after OAuth callback');
+      }
+
+      console.log('🔍 Google user metadata:', session.user.user_metadata);
+
+      // Extract Google profile data
+      const googleProfile = session.user.user_metadata;
+      const fullName = googleProfile?.full_name || googleProfile?.name || '';
+      const firstName = googleProfile?.given_name || googleProfile?.first_name || fullName.split(' ')[0] || '';
+      const lastName = googleProfile?.family_name || googleProfile?.last_name || fullName.split(' ').slice(1).join(' ') || '';
+      const email = session.user.email || '';
+
+      // Check if user profile exists in our custom users table
+      let userRecord = null;
+      for (let i = 0; i < 5; i++) {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        if (data) {
+          userRecord = data;
+          break;
+        }
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('❌ Failed to fetch user data after OAuth:', error);
+          throw new Error('Failed to fetch user data after OAuth login.');
+        }
+
+        // Wait before retrying (OAuth user creation might take a moment)
+        if (i < 4) {
+          console.log(`OAuth user record not found, retrying... (attempt ${i + 2})`);
+          await new Promise(res => setTimeout(res, 1000));
+        }
+      }
+
+      // If user record still doesn't exist, create it with Google data
+      if (!userRecord) {
+        console.log('Creating user profile for OAuth user with Google data...');
+        const { data: newUser, error: insertError } = await supabase
+          .from('users')
+          .insert({
+            id: session.user.id,
+            email: email,
+            first_name: firstName,
+            last_name: lastName,
+            username: '', // Will be filled in onboarding
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('❌ Failed to create OAuth user profile:', insertError);
+          throw new Error('Failed to create user profile after OAuth login.');
+        }
+
+        userRecord = newUser;
+      }
+
+      return {
+        user: userRecord,
+        token: session.access_token,
+      };
+    } catch (error) {
+      console.error('❌ OAuth callback handling failed:', error);
+      throw error;
+    }
+  },
+
   // Get current user (for session persistence)
   async getCurrentUser() {
     try {
