@@ -215,8 +215,6 @@ p {
   margin-top: 1.5rem;
   color: #666;
 }
-  transform: translateY(-1px);
-}
 
 .dashboard .button:active {
   transform: translateY(0);

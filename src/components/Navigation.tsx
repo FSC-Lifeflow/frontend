@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ChatInterface } from "./ChatInterface";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/contexts/AuthContext";
 import { 
   Home, 
   User, 
@@ -10,7 +11,8 @@ import {
   Settings, 
   MessageCircle,
   Menu,
-  X
+  X,
+  LogOut
 } from "lucide-react";
 
 const navigationItems = [
@@ -25,6 +27,18 @@ export function Navigation() {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const location = useLocation();
   const isMobile = useIsMobile();
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/signin');
+    } catch (error) {
+      console.error("Logout failed", error);
+      // Optionally, show an error message to the user
+    }
+  };
 
   if (isMobile) {
     return (
@@ -54,27 +68,35 @@ export function Navigation() {
           {/* Mobile Menu Overlay */}
           {showMobileMenu && (
             <div className="absolute top-full left-0 right-0 bg-background border-b shadow-lg">
-              <nav className="p-4">
-                {navigationItems.map((item) => {
-                  const isActive = location.pathname === item.path;
-                  return (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      onClick={() => setShowMobileMenu(false)}
-                      className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
-                        isActive 
-                          ? 'bg-gradient-primary text-white' 
-                          : 'hover:bg-muted'
-                      }`}
-                    >
-                      <item.icon className="w-5 h-5" />
-                      <span>{item.label}</span>
-                    </Link>
-                  );
-                })}
-              </nav>
-            </div>
+            <nav className="p-4">
+              {navigationItems.map((item) => {
+                const isActive = location.pathname === item.path;
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => setShowMobileMenu(false)}
+                    className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
+                      isActive 
+                        ? 'bg-gradient-primary text-white' 
+                        : 'hover:bg-muted'
+                    }`}
+                  >
+                    <item.icon className="w-5 h-5" />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+              {/* Logout Button for Mobile */}
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-3 p-3 rounded-lg transition-colors w-full text-left hover:bg-muted text-red-500"
+              >
+                <LogOut className="w-5 h-5" />
+                <span>Log Out</span>
+              </button>
+            </nav>
+          </div>
           )}
         </header>
 
@@ -145,6 +167,17 @@ export function Navigation() {
             <MessageCircle className="w-4 h-4 mr-2" />
             AI Coach Chat
           </Button>
+
+          {/* Desktop Logout Button */}
+          <div className="absolute bottom-0 left-0 right-0 p-6">
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-3 p-3 rounded-lg transition-colors w-full text-left hover:bg-muted text-red-500"
+            >
+              <LogOut className="w-5 h-5" />
+              <span>Log Out</span>
+            </button>
+          </div>
         </div>
       </nav>
 

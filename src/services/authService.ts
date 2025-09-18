@@ -1,129 +1,172 @@
-// Mock user type that matches our registration form
+import { supabase } from '../lib/supabase';
+
+// User type that matches our database schema
 type User = {
   id: string;
-  firstName: string;
-  lastName: string;
+  username: string;
+  first_name: string;
+  last_name: string;
   email: string;
-  password: string; // In a real app, this would be a hashed password
-  createdAt: string;
+  created_at: string;
 };
-
-// Mock database using localStorage
-const MOCK_DB_KEY = 'mockAuthDB';
-
-// Initialize mock database if it doesn't exist
-const initializeDB = (): User[] => {
-  if (typeof window === 'undefined') return [];
-  
-  const existingDB = localStorage.getItem(MOCK_DB_KEY);
-  if (existingDB) {
-    return JSON.parse(existingDB);
-  }
-  
-  const initialDB: User[] = [];
-  localStorage.setItem(MOCK_DB_KEY, JSON.stringify(initialDB));
-  return initialDB;
-};
-
-// Simulate API delay
-const simulateAPIDelay = () => new Promise(resolve => 
-  setTimeout(resolve, 300 + Math.random() * 700)
-);
 
 export const authService = {
   // Register a new user
-  async register(userData: Omit<User, 'id' | 'createdAt'>) {
-    await simulateAPIDelay();
-    
-    const db = initializeDB();
-    
-    // Check if user already exists
-    const userExists = db.some(user => user.email === userData.email);
-    if (userExists) {
-      throw new Error('A user with this email already exists');
+  async register(userData: { username: string; firstName: string; lastName: string; email: string; password: string }) {
+    try {
+      console.log('🚀 Starting registration for:', userData.email);
+      
+      // Create the auth user with Supabase Auth - the trigger will handle the users table insert
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: userData.email,
+        password: userData.password,
+        options: {
+          data: {
+            username: userData.username,
+            first_name: userData.firstName,
+            last_name: userData.lastName,
+          }
+        }
+      });
+
+      if (authError) {
+        console.error('❌ Auth signup error:', authError);
+        throw new Error(authError.message);
+      }
+
+      if (!authData.user) {
+        console.error('❌ No user returned from auth signup');
+        throw new Error('Failed to create user');
+      }
+
+      console.log('✅ Auth user created, trigger will handle profile creation.');
+    } catch (error) {
+      console.error('❌ Registration failed:', error);
+      throw error;
     }
-    
-    // Create new user
-    const newUser: User = {
-      ...userData,
-      id: Math.random().toString(36).substr(2, 9),
-      createdAt: new Date().toISOString(),
-    };
-    
-    // Save to mock DB
-    db.push(newUser);
-    localStorage.setItem(MOCK_DB_KEY, JSON.stringify(db));
-    
-    // Return user data (without password)
-    const { password, ...userDataWithoutPassword } = newUser;
-    return userDataWithoutPassword;
-  },
-  
-  // Login user
-  async login(credentials: { email: string; password: string }) {
-    await simulateAPIDelay();
-    
-    const db = initializeDB();
-    const user = db.find(
-      u => u.email === credentials.email && u.password === credentials.password
-    );
-    
-    if (!user) {
-      throw new Error('Invalid email or password');
-    }
-    
-    // In a real app, we would return a JWT token
-    const { password, ...userDataWithoutPassword } = user;
-    return {
-      user: userDataWithoutPassword,
-      token: 'mock-jwt-token',
-    };
-  },
-  
-  // Get current user (for session persistence)
-  async getCurrentUser() {
-    await simulateAPIDelay();
-    
-    // In a real app, this would verify a JWT token
-    const token = localStorage.getItem('auth_token');
-    if (!token) return null;
-    
-    // This is a mock implementation - in a real app, you'd verify the token
-    // and get the user ID from it, then fetch the user from the database
-    const db = initializeDB();
-    const user = db[0]; // Just return the first user for demo purposes
-    
-    if (!user) return null;
-    
-    const { password, ...userDataWithoutPassword } = user;
-    return userDataWithoutPassword;
-  },
-  
-  // Logout
-  async logout() {
-    await simulateAPIDelay();
-    localStorage.removeItem('auth_token');
-    return true;
-  },
-  
-  // API for auth components
-  async signin(payload: { email: string; password: string }) {
-    const res = await fetch('/api/auth/signin', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw new Error('Signin failed');
-    return res.json();
   },
 
-  async registerAPI(payload: { firstName: string; lastName?: string; email: string; password: string }) {
-    const res = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw new Error('Registration failed');
-    return res.json();
+  // Login user
+  async login(credentials: { email: string; password: string }) {
+    try {
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: credentials.email,
+        password: credentials.password,
+      });
+
+      if (authError) {
+        // Provide more helpful error messages
+        if (authError.message === 'Email not confirmed') {
+          throw new Error('Please confirm your email address before signing in. Check your email for a confirmation link, or contact support if you need help.');
+        }
+        if (authError.message === 'Invalid login credentials') {
+          throw new Error('Invalid email or password. If you just registered, please check your email for a confirmation link first.');
+        }
+        throw new Error(authError.message);
+      }
+
+      if (!authData.user) {
+        throw new Error('Login failed');
+      }
+
+      // Retry fetching user data to account for trigger delay
+      let userRecord = null;
+      for (let i = 0; i < 3; i++) {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', authData.user.id)
+          .maybeSingle();
+
+        if (data) {
+          userRecord = data;
+          break;
+        }
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('❌ Failed to fetch user data on login:', error);
+          throw new Error('Failed to fetch user data after login.');
+        }
+
+        // Wait before retrying
+        if (i < 2) {
+          console.log(`User record not found, retrying... (attempt ${i + 2})`);
+          await new Promise(res => setTimeout(res, 500));
+        }
+      }
+
+      if (!userRecord) {
+        console.error('❌ Failed to fetch user data after multiple attempts.');
+        throw new Error('Could not retrieve user profile after login.');
+      }
+
+      return {
+        user: userRecord,
+        token: authData.session?.access_token || '',
+      };
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Get current user (for session persistence)
+  async getCurrentUser() {
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        throw new Error(sessionError.message);
+      }
+
+      if (!session?.user) {
+        return null;
+      }
+
+      // Get user data from our custom users table
+      const { data: userRecord, error: dbError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      if (dbError) {
+        console.error('❌ Failed to fetch user data on session load:', dbError);
+        return null;
+      }
+
+      return userRecord;
+    } catch (error) {
+      return null;
+    }
+  },
+
+  // Logout
+  async logout() {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        throw new Error(error.message);
+      }
+      return true;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Update user profile
+  async updateUserProfile(userId: string, updates: Partial<User>) {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update(updates)
+        .eq('id', userId);
+
+      if (error) {
+        console.error('❌ Failed to update user profile:', error);
+        throw new Error('Failed to update user profile.');
+      }
+    } catch (error) {
+      throw error;
+    }
   },
 };

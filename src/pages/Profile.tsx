@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { WellnessLayout } from "@/components/WellnessLayout";
 import { WellnessCard } from "@/components/WellnessCard";
 import { Button } from "@/components/ui/button";
@@ -10,28 +10,81 @@ import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { User, Upload, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { authService } from "@/services/authService";
 
 export default function Profile() {
   const { toast } = useToast();
+  const [userId, setUserId] = useState<string | null>(null);
   const [profileData, setProfileData] = useState({
-    name: "Sarah Johnson",
-    email: "sarah@example.com",
+    name: "",
+    email: "",
     profilePicture: "",
-    fitnessLevel: "intermediate",
-    primaryGoals: "weight-loss",
-    exercisePreferences: "strength-cardio",
-    weeklyFrequency: "4-5-days",
-    sessionDuration: "30-45-min",
-    equipmentAccess: "full-gym",
+    fitnessLevel: "",
+    primaryGoals: "",
+    exercisePreferences: "",
+    weeklyFrequency: "",
+    sessionDuration: "",
+    equipmentAccess: "",
     physicalLimitations: "",
     socialPrivacy: true
   });
 
-  const handleSave = () => {
-    toast({
-      title: "Profile Updated",
-      description: "Your profile settings have been saved successfully.",
-    });
+  useEffect(() => {
+    const fetchUserData = async () => {
+      const user = await authService.getCurrentUser();
+      if (user) {
+        setUserId(user.id);
+        setProfileData(prev => ({
+          ...prev,
+          name: `${user.first_name} ${user.last_name}`,
+          email: user.email,
+          fitnessLevel: user.fitness_level || "",
+          primaryGoals: user.primary_goals || "",
+          exercisePreferences: user.exercise_preferences || "",
+          weeklyFrequency: user.weekly_frequency || "",
+          sessionDuration: user.session_duration || "",
+          equipmentAccess: user.equipment_access || "",
+          physicalLimitations: user.physical_limitations || "",
+          socialPrivacy: user.social_privacy !== false,
+        }));
+      }
+    };
+
+    fetchUserData();
+  }, []);
+
+  const handleSave = async () => {
+    if (!userId) return;
+
+    try {
+      const [firstName, ...lastNameParts] = profileData.name.split(' ');
+      const lastName = lastNameParts.join(' ');
+
+      await authService.updateUserProfile(userId, {
+        first_name: firstName,
+        last_name: lastName,
+        email: profileData.email,
+        fitness_level: profileData.fitnessLevel,
+        primary_goals: profileData.primaryGoals,
+        exercise_preferences: profileData.exercisePreferences,
+        weekly_frequency: profileData.weeklyFrequency,
+        session_duration: profileData.sessionDuration,
+        equipment_access: profileData.equipmentAccess,
+        physical_limitations: profileData.physicalLimitations,
+        social_privacy: profileData.socialPrivacy,
+      });
+
+      toast({
+        title: "Profile Updated",
+        description: "Your profile settings have been saved successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update profile. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleInputChange = (field: string, value: string | boolean) => {
