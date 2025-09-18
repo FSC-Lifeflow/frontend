@@ -63,7 +63,6 @@ export default function Profile() {
       await authService.updateUserProfile(userId, {
         first_name: firstName,
         last_name: lastName,
-        email: profileData.email,
         fitness_level: profileData.fitnessLevel,
         primary_goals: profileData.primaryGoals,
         exercise_preferences: profileData.exercisePreferences,
@@ -136,7 +135,8 @@ export default function Profile() {
                       id="email"
                       type="email"
                       value={profileData.email}
-                      onChange={(e) => handleInputChange('email', e.target.value)}
+                      readOnly
+                      className="bg-gray-50 cursor-not-allowed"
                     />
                   </div>
                 </div>
