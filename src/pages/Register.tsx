@@ -1,3 +1,4 @@
+// Import necessary React hooks and components
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +8,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
 
+/**
+ * Register Component
+ * Handles user registration with email/password and Google OAuth.
+ * Includes form validation, password visibility toggle, and error handling.
+ */
 const Register = () => {
+  // State for form data with default empty values
   const [formData, setFormData] = useState({
     username: '',
     firstName: '',
@@ -16,6 +23,8 @@ const Register = () => {
     password: '',
     confirmPassword: ''
   });
+  
+  // UI state management
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
@@ -23,9 +32,14 @@ const Register = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   
+  // Get authentication methods from AuthContext
   const { register, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
 
+  /**
+   * Handles input field changes and updates the form state
+   * @param e - The change event from the input field
+   */
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
       ...formData,
@@ -33,11 +47,16 @@ const Register = () => {
     });
   };
 
+  /**
+   * Handles form submission for email/password registration
+   * @param e - The form submission event
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
 
+    // Client-side form validation
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       return;
@@ -61,6 +80,7 @@ const Register = () => {
     setIsLoading(true);
     try {
       console.log('🎯 Attempting to register user:', formData.email);
+      // Call the register function from AuthContext
       await register({
         username: formData.username,
         firstName: formData.firstName,
@@ -68,6 +88,8 @@ const Register = () => {
         email: formData.email,
         password: formData.password
       });
+      
+      // Show success message and redirect to dashboard
       setSuccess('Account created successfully! Redirecting to dashboard...');
       console.log('✅ Registration successful, navigating to dashboard');
       setTimeout(() => navigate('/dashboard'), 1500);
@@ -79,9 +101,13 @@ const Register = () => {
     }
   };
 
+  /**
+   * Handles Google OAuth registration/sign-in
+   */
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
     try {
+      // Initiate Google OAuth flow
       await loginWithGoogle();
       navigate('/dashboard');
     } catch (err) {
@@ -95,16 +121,19 @@ const Register = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-white to-accent/5 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
+        {/* Back to home link */}
         <div className="mb-6">
           <Link 
             to="/" 
             className="inline-flex items-center text-primary hover:text-primary/80 transition-colors"
+            aria-label="Back to home"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Home
           </Link>
         </div>
         
+        {/* Registration card */}
         <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-bold text-primary">
@@ -116,7 +145,9 @@ const Register = () => {
           </CardHeader>
           
           <CardContent>
+            {/* Registration form */}
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Username input */}
               <div className="space-y-2">
                 <Label htmlFor="username">Username</Label>
                 <Input
@@ -131,6 +162,7 @@ const Register = () => {
                 />
               </div>
               
+              {/* Name fields */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">First Name</Label>
@@ -158,6 +190,7 @@ const Register = () => {
                 </div>
               </div>
               
+              {/* Email input */}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -171,6 +204,7 @@ const Register = () => {
                 />
               </div>
               
+              {/* Password input with visibility toggle */}
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <div className="relative">
@@ -187,12 +221,14 @@ const Register = () => {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
               
+              {/* Confirm password input with visibility toggle */}
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword">Confirm Password</Label>
                 <div className="relative">
@@ -209,24 +245,28 @@ const Register = () => {
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    aria-label={showConfirmPassword ? "Hide password" : "Show password"}
                   >
                     {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
               
+              {/* Error message display */}
               {error && (
                 <div className="text-red-500 text-sm text-center bg-red-50 p-3 rounded-md">
                   {error}
                 </div>
               )}
               
+              {/* Success message display */}
               {success && (
                 <div className="text-green-500 text-sm text-center bg-green-50 p-3 rounded-md">
                   {success}
                 </div>
               )}
               
+              {/* Submit button */}
               <Button 
                 type="submit" 
                 className="w-full bg-gradient-motivation hover:opacity-90 text-white"
@@ -236,6 +276,7 @@ const Register = () => {
               </Button>
             </form>
             
+            {/* Google OAuth registration option */}
             <div className="mt-6 text-center">
               <Button 
                 type="button" 
@@ -247,6 +288,7 @@ const Register = () => {
               </Button>
             </div>
             
+            {/* Link to sign-in page */}
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">
                 Already have an account?{' '}

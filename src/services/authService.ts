@@ -1,6 +1,10 @@
+// Import Supabase client configuration
 import { supabase } from '../lib/supabase';
 
-// User type that matches our database schema
+/**
+ * Type definition for user data that matches our database schema
+ * This ensures type safety when working with user data throughout the application
+ */
 type User = {
   id: string;
   username: string;
@@ -10,13 +14,29 @@ type User = {
   created_at: string;
 };
 
+/**
+ * Auth Service
+ * Handles all authentication-related functionality including:
+ * - User registration
+ * - Email/password login
+ * - Google OAuth login
+ * - Session management
+ * - User profile updates
+ */
 export const authService = {
-  // Register a new user
+  /**
+   * Registers a new user with email and password
+   * @param userData - Object containing user registration details
+   * @returns Promise that resolves when registration is complete
+   * @throws Error if registration fails
+   */
   async register(userData: { username: string; firstName: string; lastName: string; email: string; password: string }) {
     try {
       console.log('🚀 Starting registration for:', userData.email);
       
-      // Create the auth user with Supabase Auth - the trigger will handle the users table insert
+      // Create the auth user with Supabase Auth
+      // The auth.users table is populated first, then a database trigger
+      // handles creating the corresponding record in the public.users table
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: userData.email,
         password: userData.password,
@@ -46,9 +66,15 @@ export const authService = {
     }
   },
 
-  // Login user
+  /**
+   * Authenticates a user with email and password
+   * @param credentials - Object containing email and password
+   * @returns Object containing user data and access token
+   * @throws Error with user-friendly message if login fails
+   */
   async login(credentials: { email: string; password: string }) {
     try {
+      // Attempt to authenticate with Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: credentials.email,
         password: credentials.password,
@@ -70,6 +96,8 @@ export const authService = {
       }
 
       // Retry fetching user data to account for trigger delay
+      // This is important because there might be a slight delay between auth user creation
+      // and the database trigger creating the user profile
       let userRecord = null;
       for (let i = 0; i < 3; i++) {
         const { data, error } = await supabase
@@ -109,16 +137,22 @@ export const authService = {
     }
   },
 
-  // Login with Google
+  /**
+   * Initiates Google OAuth login flow
+   * @returns OAuth response data
+   * @throws Error if OAuth initialization fails
+   */
   async loginWithGoogle() {
     try {
+      // Configure OAuth with Google provider
+      // Redirects to Google's consent screen, then back to /auth/callback
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
           queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
+            access_type: 'offline',  // Request refresh token
+            prompt: 'consent',       // Force consent screen to get refresh token
           }
         }
       });
@@ -135,9 +169,15 @@ export const authService = {
     }
   },
 
-  // Handle OAuth callback (for when user returns from Google OAuth)
+  /**
+   * Handles the OAuth callback after successful Google authentication
+   * Retrieves or creates user profile and returns session data
+   * @returns Object containing user data and access token
+   * @throws Error if OAuth callback handling fails
+   */
   async handleOAuthCallback() {
     try {
+      // Get the current session after OAuth redirect
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError) {
@@ -150,14 +190,15 @@ export const authService = {
 
       console.log('🔍 Google user metadata:', session.user.user_metadata);
 
-      // Extract Google profile data
+      // Extract user information from Google profile
       const googleProfile = session.user.user_metadata;
       const fullName = googleProfile?.full_name || googleProfile?.name || '';
       const firstName = googleProfile?.given_name || googleProfile?.first_name || fullName.split(' ')[0] || '';
       const lastName = googleProfile?.family_name || googleProfile?.last_name || fullName.split(' ').slice(1).join(' ') || '';
       const email = session.user.email || '';
 
-      // Check if user profile exists in our custom users table
+      // Check if user profile exists in our database
+      // Multiple retries to handle potential replication delay
       let userRecord = null;
       for (let i = 0; i < 5; i++) {
         const { data, error } = await supabase
@@ -183,7 +224,7 @@ export const authService = {
         }
       }
 
-      // If user record still doesn't exist, create it with Google data
+      // If user record doesn't exist, create it with Google profile data
       if (!userRecord) {
         console.log('Creating user profile for OAuth user with Google data...');
         const { data: newUser, error: insertError } = await supabase
@@ -193,7 +234,7 @@ export const authService = {
             email: email,
             first_name: firstName,
             last_name: lastName,
-            username: '', // Will be filled in onboarding
+            username: '', // Username will be set during onboarding
           })
           .select()
           .single();
@@ -216,9 +257,13 @@ export const authService = {
     }
   },
 
-  // Get current user (for session persistence)
+  /**
+   * Retrieves the currently authenticated user's data
+   * @returns User data if authenticated, null otherwise
+   */
   async getCurrentUser() {
     try {
+      // Get the current session
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError) {
@@ -243,11 +288,16 @@ export const authService = {
 
       return userRecord;
     } catch (error) {
+      // Silently fail - this might be called on every page load
       return null;
     }
   },
 
-  // Logout
+  /**
+   * Logs out the current user
+   * @returns true if logout was successful
+   * @throws Error if logout fails
+   */
   async logout() {
     try {
       const { error } = await supabase.auth.signOut();
@@ -260,7 +310,12 @@ export const authService = {
     }
   },
 
-  // Update user profile
+  /**
+   * Updates a user's profile information
+   * @param userId - ID of the user to update
+   * @param updates - Object containing the fields to update
+   * @throws Error if update fails
+   */
   async updateUserProfile(userId: string, updates: Partial<User>) {
     try {
       const { error } = await supabase

@@ -1,3 +1,4 @@
+// Import necessary React hooks and components
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +8,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
 
+/**
+ * SignIn Component
+ * Handles user authentication including email/password and Google OAuth sign-in
+ */
 const SignIn = () => {
+  // State for form data and UI controls
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -17,9 +23,11 @@ const SignIn = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   
+  // Get authentication methods from AuthContext
   const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
 
+  // Handle input field changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
       ...formData,
@@ -27,10 +35,12 @@ const SignIn = () => {
     });
   };
 
+  // Handle form submission for email/password sign-in
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
+    // Basic form validation
     if (!formData.email || !formData.password) {
       setError('Please fill in all fields');
       return;
@@ -50,6 +60,7 @@ const SignIn = () => {
     }
   };
 
+  // Handle Google OAuth sign-in
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
     try {
@@ -65,8 +76,10 @@ const SignIn = () => {
   };
 
   return (
+    // Main container with gradient background
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-white to-accent/5 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
+        {/* Back to home link */}
         <div className="mb-6">
           <Link 
             to="/" 
@@ -77,6 +90,7 @@ const SignIn = () => {
           </Link>
         </div>
         
+        {/* Sign-in card */}
         <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-bold text-primary">
@@ -88,7 +102,9 @@ const SignIn = () => {
           </CardHeader>
           
           <CardContent>
+            {/* Email/Password Sign-in Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Email Input */}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -102,6 +118,7 @@ const SignIn = () => {
                 />
               </div>
               
+              {/* Password Input with Toggle */}
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <div className="relative">
@@ -114,22 +131,26 @@ const SignIn = () => {
                     required
                     className="border-primary/20 focus:border-primary pr-10"
                   />
+                  {/* Password visibility toggle */}
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
               
+              {/* Error message display */}
               {error && (
                 <div className="text-red-500 text-sm text-center bg-red-50 p-3 rounded-md">
                   {error}
                 </div>
               )}
               
+              {/* Submit button */}
               <Button 
                 type="submit" 
                 className="w-full bg-gradient-motivation hover:opacity-90 text-white"
@@ -139,6 +160,7 @@ const SignIn = () => {
               </Button>
             </form>
             
+            {/* Registration link */}
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">
                 Don't have an account?{' '}
@@ -148,6 +170,7 @@ const SignIn = () => {
               </p>
             </div>
             
+            {/* Google Sign-in Button */}
             <div className="mt-6 text-center">
               <Button 
                 type="button" 

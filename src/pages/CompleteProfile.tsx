@@ -1,3 +1,4 @@
+// Import necessary React hooks and components
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,31 +8,43 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
 
+/**
+ * CompleteProfile Component
+ * Handles the profile completion flow for new users or users with incomplete profiles.
+ * This component collects missing user information (username, first name, last name)
+ * and updates the user's profile in the database.
+ */
 const CompleteProfile = () => {
+  // State for form data with default empty values
   const [formData, setFormData] = useState({
     username: '',
     firstName: '',
     lastName: ''
   });
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  
+  const [error, setError] = useState('');        
+  const [isLoading, setIsLoading] = useState(false); 
+  
+  // Tracks which fields are missing from the user's profile
   const [missingFields, setMissingFields] = useState({
     username: false,
     firstName: false,
     lastName: false
   });
   
+  // Get current user data from Auth context
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // Effect hook to handle initial setup when component mounts or user changes
   useEffect(() => {
-    // If user is not logged in, redirect
+    // Redirect to sign-in if user is not authenticated
     if (!user) {
       navigate('/signin');
       return;
     }
     
-    // Determine which fields are missing
+    // Determine which required fields are missing from the user's profile
     const missing = {
       username: !user.username || user.username.trim() === '',
       firstName: !user.first_name || user.first_name.trim() === '',
@@ -40,13 +53,13 @@ const CompleteProfile = () => {
 
     setMissingFields(missing);
 
-    // If all fields are complete, redirect to dashboard
+    // If no fields are missing, redirect to dashboard
     if (!missing.username && !missing.firstName && !missing.lastName) {
       navigate('/dashboard');
       return;
     }
     
-    // Pre-fill form with existing data
+    // Pre-fill form with existing user data (if any)
     setFormData({
       username: user.username || '',
       firstName: user.first_name || '',
@@ -54,6 +67,7 @@ const CompleteProfile = () => {
     });
   }, [user, navigate]);
 
+  // Handle input field changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
       ...formData,
@@ -61,11 +75,12 @@ const CompleteProfile = () => {
     });
   };
 
+  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    // Validate only missing fields
+    // Validate only fields that are required and missing
     if (missingFields.username && formData.username.length < 3) {
       setError('Username must be at least 3 characters long');
       return;
@@ -88,15 +103,16 @@ const CompleteProfile = () => {
 
     setIsLoading(true);
     try {
-      // Only update fields that were missing
+      // Prepare updates object with only the fields that need to be updated
       const updates: any = {};
       if (missingFields.username) updates.username = formData.username;
       if (missingFields.firstName) updates.first_name = formData.firstName;
       if (missingFields.lastName) updates.last_name = formData.lastName;
 
+      // Update user profile with the new information
       await authService.updateUserProfile(user!.id, updates);
       
-      // Refresh user data in context
+      // Force a page reload to update the auth context with new user data
       window.location.reload();
       navigate('/dashboard');
     } catch (err) {
@@ -107,6 +123,7 @@ const CompleteProfile = () => {
     }
   };
 
+  // Don't render anything if user is not loaded yet (will redirect in useEffect)
   if (!user) {
     return null; // Will redirect in useEffect
   }
@@ -126,6 +143,7 @@ const CompleteProfile = () => {
           
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Username field - only shown if username is missing */}
               {missingFields.username && (
                 <div className="space-y-2">
                   <Label htmlFor="username">Username</Label>
@@ -142,6 +160,7 @@ const CompleteProfile = () => {
                 </div>
               )}
               
+              {/* Name fields - only shown if either first or last name is missing */}
               {(missingFields.firstName || missingFields.lastName) && (
                 <div className="grid grid-cols-2 gap-4">
                   {missingFields.firstName && (
@@ -175,12 +194,14 @@ const CompleteProfile = () => {
                 </div>
               )}
               
+              {/* Error message display */}
               {error && (
                 <div className="text-red-500 text-sm text-center bg-red-50 p-3 rounded-md">
                   {error}
                 </div>
               )}
               
+              {/* Submit button */}
               <Button 
                 type="submit" 
                 className="w-full bg-gradient-motivation hover:opacity-90 text-white"
