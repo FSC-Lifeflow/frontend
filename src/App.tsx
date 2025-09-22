@@ -14,7 +14,6 @@ import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import Social from "./pages/Social";
 import Settings from "./pages/Settings";
-import Landing from "./pages/Landing";
 import Register from "./pages/Register";
 import SignIn from "./pages/SignIn";
 import AuthCallback from "./pages/AuthCallback";
@@ -70,7 +69,7 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <div className="flex min-h-screen w-full">
+          {/* <div className="flex min-h-screen w-full">
             <Navigation />
             <main className={`flex-1 ${!isMobile ? 'ml-64' : 'mt-16 mb-16'}`}>
               <Routes>
@@ -81,7 +80,10 @@ const App = () => {
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </main>
-          </div>
+          </div> */}
+          <AuthProvider>
+            <AppContent />
+          </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
