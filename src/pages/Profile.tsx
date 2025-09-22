@@ -22,6 +22,8 @@ import {
 import { User, Upload, Save, Bell, X, Check, UserX, Loader2, Users } from "lucide-react";
 // Custom hooks and services
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNotifications } from "@/contexts/NotificationContext";
 import { authService } from "@/services/authService";
 import { notificationService, type Notification } from "@/services/notificationService";
 import { friendService, type SearchUser } from "@/services/friendService";
@@ -31,6 +33,8 @@ import { friendService, type SearchUser } from "@/services/friendService";
  * Handles personal details, fitness preferences, and privacy settings
  */
 export default function Profile() {
+  const { user } = useAuth();
+  const { unreadCount, refreshUnreadCount } = useNotifications();
   const { toast } = useToast();
   const [userId, setUserId] = useState<string | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -55,15 +59,18 @@ export default function Profile() {
     socialPrivacy: true
   });
 
-  // Get unread notification count
-  const unreadCount = notifications.filter(n => !n.read).length;
-
   // Fetch user data on component mount
   useEffect(() => {
     const fetchUserData = async () => {
       const user = await authService.getCurrentUser();
       if (user) {
         setUserId(user.id);
+        
+        // Debug logging to see what's actually in the database
+        console.log('🔍 User data from database:', user);
+        console.log('🔍 social_privacy value:', user.social_privacy);
+        console.log('🔍 social_privacy type:', typeof user.social_privacy);
+        
         // Update profile data with user information
         setProfileData(prev => ({
           ...prev,
@@ -76,8 +83,10 @@ export default function Profile() {
           sessionDuration: user.session_duration || "",
           equipmentAccess: user.equipment_access || "",
           physicalLimitations: user.physical_limitations || "",
-          socialPrivacy: user.social_privacy !== false,
+          socialPrivacy: user.social_privacy ?? true, // Use nullish coalescing to default to true only if null/undefined
         }));
+        
+        console.log('🔍 Set socialPrivacy to:', user.social_privacy ?? true);
       }
     };
 
@@ -129,13 +138,46 @@ export default function Profile() {
 
   const handleNotificationClick = async () => {
     setShowNotifications(true);
-    await fetchNotifications();
-    // Mark all notifications as read when opened
-    try {
-      await notificationService.markAllAsRead();
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    } catch (error) {
-      console.error('Failed to mark notifications as read:', error);
+    if (notifications.length === 0) {
+      setLoadingNotifications(true);
+      try {
+        const fetchedNotifications = await notificationService.getNotifications();
+        setNotifications(fetchedNotifications);
+        
+        // Mark unread notifications as read
+        const unreadNotifications = fetchedNotifications.filter(n => !n.is_read);
+        if (unreadNotifications.length > 0) {
+          await Promise.all(
+            unreadNotifications.map(n => notificationService.markAsRead(n.id))
+          );
+          // Update local state to reflect read status
+          setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+          await refreshUnreadCount(); // Refresh the global unread count
+        }
+      } catch (error) {
+        console.error('Failed to fetch notifications:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load notifications",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingNotifications(false);
+      }
+    } else {
+      // Mark any unread notifications as read when opening the modal
+      const unreadNotifications = notifications.filter(n => !n.is_read);
+      if (unreadNotifications.length > 0) {
+        try {
+          await Promise.all(
+            unreadNotifications.map(n => notificationService.markAsRead(n.id))
+          );
+          setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+          await refreshUnreadCount(); // Refresh the global unread count
+        } catch (error) {
+          console.error('Failed to mark notifications as read:', error);
+        }
+      }
     }
   };
 
@@ -143,8 +185,9 @@ export default function Profile() {
     try {
       await notificationService.deleteNotification(notificationId);
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      await refreshUnreadCount(); // Refresh the global unread count
       toast({
-        title: "Notification Removed",
+        title: "Notification removed",
         description: "Notification has been deleted",
       });
     } catch (error) {
@@ -161,6 +204,7 @@ export default function Profile() {
       await friendService.acceptFriendRequest(friendRequestId);
       await notificationService.deleteNotification(notificationId);
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      await refreshUnreadCount(); // Refresh the global unread count
       toast({
         title: "Friend Request Accepted",
         description: "You are now friends!",
@@ -179,6 +223,7 @@ export default function Profile() {
       await friendService.rejectFriendRequest(friendRequestId);
       await notificationService.deleteNotification(notificationId);
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      await refreshUnreadCount(); // Refresh the global unread count
       toast({
         title: "Friend Request Rejected",
         description: "Friend request has been declined",
@@ -233,8 +278,12 @@ export default function Profile() {
       const [firstName, ...lastNameParts] = profileData.name.split(' ');
       const lastName = lastNameParts.join(' ');
 
-      // Prepare and send update to the server
-      await authService.updateUserProfile(userId, {
+      // Debug logging to see what we're trying to save
+      console.log('💾 Saving profile data:');
+      console.log('💾 socialPrivacy from state:', profileData.socialPrivacy);
+      console.log('💾 socialPrivacy type:', typeof profileData.socialPrivacy);
+      
+      const updateData = {
         first_name: firstName,
         last_name: lastName,
         fitness_level: profileData.fitnessLevel,
@@ -245,7 +294,12 @@ export default function Profile() {
         equipment_access: profileData.equipmentAccess,
         physical_limitations: profileData.physicalLimitations,
         social_privacy: profileData.socialPrivacy,
-      });
+      };
+      
+      console.log('💾 Full update object:', updateData);
+
+      // Prepare and send update to the server
+      await authService.updateUserProfile(userId, updateData);
 
       // Show success notification
       toast({
@@ -268,7 +322,44 @@ export default function Profile() {
    * @param value 
    */
   const handleInputChange = (field: string, value: string | boolean) => {
+    if (field === 'socialPrivacy') {
+      console.log('🔄 Social privacy switch toggled to:', value);
+      console.log('🔄 Value type:', typeof value);
+      
+      // Auto-save social privacy setting immediately when toggled
+      handleSocialPrivacyChange(value as boolean);
+    }
     setProfileData(prev => ({ ...prev, [field]: value }));
+  };
+
+  /**
+   * Handles immediate saving of social privacy setting when toggled
+   */
+  const handleSocialPrivacyChange = async (newValue: boolean) => {
+    if (!userId) return;
+
+    try {
+      console.log('💾 Auto-saving social privacy to:', newValue);
+      
+      await authService.updateUserProfile(userId, {
+        social_privacy: newValue,
+      });
+
+      toast({
+        title: "Privacy Setting Updated",
+        description: `Social features ${newValue ? 'enabled' : 'disabled'}`,
+      });
+    } catch (error) {
+      console.error('❌ Failed to update social privacy:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update privacy setting. Please try again.",
+        variant: "destructive",
+      });
+      
+      // Revert the switch state on error
+      setProfileData(prev => ({ ...prev, socialPrivacy: !newValue }));
+    }
   };
 
   // Render the profile page
@@ -572,7 +663,7 @@ export default function Profile() {
                     <div
                       key={notification.id}
                       className={`p-3 rounded-lg border ${
-                        notification.read ? 'bg-muted/30' : 'bg-primary/5 border-primary/20'
+                        notification.is_read ? 'bg-muted/30' : 'bg-primary/5 border-primary/20'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">

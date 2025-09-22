@@ -19,6 +19,7 @@ export type SearchUser = {
 export const userService = {
   /**
    * Searches for users by username, first name, or last name
+   * Only returns users who have social_privacy enabled (true)
    * @param query - Search query string
    * @param limit - Maximum number of results to return (default: 10)
    * @returns Array of matching users
@@ -39,10 +40,12 @@ export const userService = {
       console.log('🔍 Current user ID:', currentUser?.id);
       
       // Search across username, first_name, and last_name fields
+      // Only include users who have social_privacy enabled (true or null, since null defaults to true)
       let queryBuilder = supabase
         .from('users')
         .select('id, username, first_name, last_name, email, created_at')
         .or(`username.ilike.${searchTerm},first_name.ilike.${searchTerm},last_name.ilike.${searchTerm}`)
+        .or('social_privacy.is.null,social_privacy.eq.true') // Include users with social_privacy = true or null
         .limit(limit);
 
       // Exclude current user from results if logged in
