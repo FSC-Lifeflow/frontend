@@ -10,9 +10,9 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
     proxy: {
       '/api/webhook': {
-        target: 'https://n8n-production-dc12.up.railway.app',
+        target: 'http://localhost:5678',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/webhook/, '/webhook-test')
+        rewrite: (path) => path.replace(/^\/api\/webhook/, '/webhook')
       }
     }
   },

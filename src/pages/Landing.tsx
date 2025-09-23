@@ -28,31 +28,6 @@ const Landing = () => {
     setIsVisible(true);
   }, []);
 
-  const handleStartFitnessJourney = async () => {
-    try {
-      const response = await fetch(`/api/webhook/${import.meta.env.VITE_TEST_WEBHOOK_ID}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'start_fitness_journey',
-          timestamp: new Date().toISOString(),
-          source: 'landing_page'
-        }),
-      });
-
-      if (response.ok) {
-        console.log('Webhook called successfully');
-        // You can add user feedback here, like a toast notification
-      } else {
-        console.error('Webhook call failed:', response.statusText);
-      }
-    } catch (error) {
-      console.error('Error calling webhook:', error);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gradient-wellness">
       {/* Hero Section */}
@@ -83,7 +58,6 @@ const Landing = () => {
               variant="motivation" 
               size="lg" 
               className="text-lg px-8 py-4 h-auto"
-              onClick={handleStartFitnessJourney}
             >
               Start Your Fitness Journey
               <ArrowRight className="ml-2" />
@@ -530,12 +504,11 @@ const Landing = () => {
               variant="motivation" 
               size="lg" 
               className="text-lg px-12 py-4 h-auto bg-white text-primary hover:bg-white/90"
-              onClick={handleStartFitnessJourney}
-            >c
+            >
               Start Your Fitness Revolution
               <ArrowRight className="ml-2" />
             </Button>
-            <Button variant="outline" size="lg" className="text-lg px-8 py-4 h-auto border-white/30 text-white hover:bg-white/10">
+            <Button variant="outline" size="lg" className="text-lg px-8 py-4 h-auto border-white/30 text-secondary hover:bg-white/10">
               Get Early Access Updates
             </Button>
           </div>
