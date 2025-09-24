@@ -10,6 +10,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { useIsMobile } from "./hooks/use-mobile";
 import { FitbitCallback } from "./components/FitbitCallback";
+import { ThemeProvider } from "next-themes";
 
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
@@ -67,20 +68,22 @@ const AppContent = () => {
 const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AuthProvider>
-            <Routes>
-              {/* Public route for Fitbit OAuth callback */}
-              <Route path="/fitbit/callback" element={<FitbitCallback />} />
-              {/* Delegate the app (public + protected) to AppContent */}
-              <Route path="/*" element={<AppContent />} />
-            </Routes>
-          </AuthProvider>
-        </BrowserRouter>
-      </TooltipProvider>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AuthProvider>
+              <Routes>
+                {/* Public route for Fitbit OAuth callback */}
+                <Route path="/fitbit/callback" element={<FitbitCallback />} />
+                {/* Delegate the app (public + protected) to AppContent */}
+                <Route path="/*" element={<AppContent />} />
+              </Routes>
+            </AuthProvider>
+          </BrowserRouter>
+        </TooltipProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 };
