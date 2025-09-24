@@ -80,8 +80,8 @@ export function useFitbit() {
 
   // Generate OAuth URL and redirect to Fitbit
   const authenticate = useCallback(() => {
-    const clientId = import.meta.env.VITE_FITBIT_CLIENT_ID;
-    const redirectUri = import.meta.env.VITE_FITBIT_REDIRECT_URI;
+    const clientId = String(import.meta.env.VITE_FITBIT_CLIENT_ID || '').trim();
+    const redirectUri = String(import.meta.env.VITE_FITBIT_REDIRECT_URI || '').trim();
     
     if (!clientId || !redirectUri) {
       setState(prev => ({ ...prev, error: 'Fitbit credentials not configured' }));
