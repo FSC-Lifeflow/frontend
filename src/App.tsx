@@ -10,6 +10,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { FitbitCallback } from "./components/FitbitCallback";
 import { useIsMobile } from "./hooks/use-mobile";
+
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
@@ -64,6 +65,7 @@ const AppContent = () => {
 };
 
 const App = () => {
+  const isMobile = useIsMobile();
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
