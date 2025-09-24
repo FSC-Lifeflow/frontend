@@ -4,13 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Settings as SettingsIcon, Bell, Shield, Smartphone, Moon } from "lucide-react";
-import { useTheme } from "next-themes";
 
 export default function Settings() {
-  const { theme, setTheme, resolvedTheme } = useTheme();
-
-  const isDark = (theme === "system" ? resolvedTheme === "dark" : theme === "dark") || false;
-
   return (
     <WellnessLayout>
       <div className="container mx-auto px-4 py-8">
@@ -88,11 +83,7 @@ export default function Settings() {
                     <Label>Dark Mode</Label>
                     <p className="text-sm text-muted-foreground">Switch to dark theme</p>
                   </div>
-                  <Switch
-                    checked={isDark}
-                    onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
-                    aria-label="Toggle dark mode"
-                  />
+                  <Switch />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
