@@ -8,6 +8,7 @@ import { Onboarding } from "./components/Onboarding";
 import { Navigation } from "./components/Navigation";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { FitbitCallback } from "./components/FitbitCallback";
 import { useIsMobile } from "./hooks/use-mobile";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
@@ -69,21 +70,29 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          {/* <div className="flex min-h-screen w-full">
-            <Navigation />
-            <main className={`flex-1 ${!isMobile ? 'ml-64' : 'mt-16 mb-16'}`}>
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/social" element={<Social />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </main>
-          </div> */}
-          <AuthProvider>
-            <AppContent />
-          </AuthProvider>
+          <Routes>
+            {/* Landing page route - no navigation */}
+            <Route path="/landing" element={<Landing />} />
+            
+            {/* Fitbit OAuth callback - no navigation */}
+            <Route path="/fitbit/callback" element={<FitbitCallback />} />
+            
+            {/* App routes with navigation */}
+            <Route path="/*" element={
+              <div className="flex min-h-screen w-full">
+                <Navigation />
+                <main className={`flex-1 ${!isMobile ? 'ml-64' : 'mt-16 mb-16'}`}>
+                  <Routes>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/social" element={<Social />} />
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </main>
+              </div>
+            } />
+          </Routes>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
