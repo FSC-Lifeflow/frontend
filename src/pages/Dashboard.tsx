@@ -71,7 +71,6 @@ export default function Dashboard() {
                   3 day streak
                 </Badge>
               </div>
-
               <FitbitData />
             </WellnessCard>
 

@@ -8,8 +8,8 @@ import { Onboarding } from "./components/Onboarding";
 import { Navigation } from "./components/Navigation";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
-import { FitbitCallback } from "./components/FitbitCallback";
 import { useIsMobile } from "./hooks/use-mobile";
+import { FitbitCallback } from "./components/FitbitCallback";
 
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
@@ -65,36 +65,20 @@ const AppContent = () => {
 };
 
 const App = () => {
-  const isMobile = useIsMobile();
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <Routes>
-            {/* Landing page route - no navigation */}
-            <Route path="/landing" element={<Landing />} />
-            
-            {/* Fitbit OAuth callback - no navigation */}
-            <Route path="/fitbit/callback" element={<FitbitCallback />} />
-            
-            {/* App routes with navigation */}
-            <Route path="/*" element={
-              <div className="flex min-h-screen w-full">
-                <Navigation />
-                <main className={`flex-1 ${!isMobile ? 'ml-64' : 'mt-16 mb-16'}`}>
-                  <Routes>
-                    <Route path="/" element={<Dashboard />} />
-                    <Route path="/profile" element={<Profile />} />
-                    <Route path="/social" element={<Social />} />
-                    <Route path="/settings" element={<Settings />} />
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </main>
-              </div>
-            } />
-          </Routes>
+          <AuthProvider>
+            <Routes>
+              {/* Public route for Fitbit OAuth callback */}
+              <Route path="/fitbit/callback" element={<FitbitCallback />} />
+              {/* Delegate the app (public + protected) to AppContent */}
+              <Route path="/*" element={<AppContent />} />
+            </Routes>
+          </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
