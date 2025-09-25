@@ -85,29 +85,7 @@ const App = () => {
           <AuthProvider>
             <AppContent />
           </AuthProvider>
-          <Routes>
-            {/* Landing page route - no navigation */}
-            <Route path="/landing" element={<Landing />} />
-            
-            {/* Fitbit OAuth callback - no navigation */}
-            <Route path="/fitbit/callback" element={<FitbitCallback />} />
-            
-            {/* App routes with navigation */}
-            <Route path="/*" element={
-              <div className="flex min-h-screen w-full">
-                <Navigation />
-                <main className={`flex-1 ${!isMobile ? 'ml-64' : 'mt-16 mb-16'}`}>
-                  <Routes>
-                    <Route path="/" element={<Dashboard />} />
-                    <Route path="/profile" element={<Profile />} />
-                    <Route path="/social" element={<Social />} />
-                    <Route path="/settings" element={<Settings />} />
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </main>
-              </div>
-            } />
-          </Routes>
+          {/* Routing is handled inside AppContent via react-router */}
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>

@@ -35,6 +35,7 @@ export interface FitbitData {
   sleep?: FitbitSleepData;
   heartRate?: FitbitHeartRateData;
   lastSync?: string;
+  caloriesSeries?: Array<{ date: string; calories: number }>;
 }
 
 export interface FitbitState {
@@ -75,6 +76,41 @@ export function useFitbit() {
         localStorage.removeItem('fitbit_token_expiry');
         localStorage.removeItem('fitbit_refresh_token');
       }
+    }
+  }, []);
+
+  // Fetch calories time series for a given range ending on provided date (default: 7d ending today)
+  const fetchCaloriesSeries = useCallback(async (range: string = '7d', endDate?: string) => {
+    const token = localStorage.getItem('fitbit_access_token');
+    if (!token) {
+      setState(prev => ({ ...prev, error: 'No access token available' }));
+      return;
+    }
+
+    try {
+      const end = endDate || new Date().toISOString().split('T')[0];
+      const res = await fetch(`${FITBIT_API_BASE}/calories/${end}/${range}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        throw new Error(`Calories series API error: ${res.status}`);
+      }
+      const data = await res.json();
+      const series: Array<{ date: string; calories: number }> = (data["activities-calories"] || []).map((d: any) => ({
+        date: d.dateTime,
+        calories: Number(d.value) || 0,
+      }));
+
+      setState(prev => ({
+        ...prev,
+        data: {
+          ...prev.data,
+          caloriesSeries: series,
+        },
+      }));
+    } catch (error) {
+      console.error('Fetch calories series error:', error);
+      setState(prev => ({ ...prev, error: error instanceof Error ? error.message : 'Failed to fetch calories series' }));
     }
   }, []);
 
@@ -315,5 +351,6 @@ export function useFitbit() {
     signOut,
     refreshData,
     refreshToken,
+    fetchCaloriesSeries,
   };
 }
