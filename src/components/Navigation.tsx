@@ -44,7 +44,7 @@ export function Navigation() {
     return (
       <>
         {/* Mobile Header */}
-        <header className="fixed top-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-b">
+        <header className="fixed top-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-b pt-[env(safe-area-inset-top)]">
           <div className="flex items-center justify-between p-4">
             <h1 className="text-xl font-bold text-primary">LifeFlow</h1>
             <div className="flex items-center gap-2">
@@ -101,7 +101,7 @@ export function Navigation() {
         </header>
 
         {/* Mobile Bottom Tab Bar */}
-        <nav className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t">
+        <nav className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t pb-[env(safe-area-inset-bottom)]">
           <div className="flex items-center justify-around p-2">
             {navigationItems.map((item) => {
               const isActive = location.pathname === item.path;
