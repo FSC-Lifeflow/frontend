@@ -134,6 +134,32 @@ app.post('/api/fitbit/token', async (req, res) => {
   }
 });
 
+// n8n webhook proxy endpoint
+app.post('/api/webhook/:webhookId', async (req, res) => {
+  try {
+    const { webhookId } = req.params;
+    
+    const response = await fetch(`https://n8n.rsweeting.com/webhook-test/${webhookId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(req.body),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return res.status(response.status).json({ error: errorText });
+    }
+
+    const data = await response.text();
+    res.send(data);
+  } catch (error) {
+    console.error('n8n webhook proxy error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Fitbit proxy server running on http://localhost:${PORT}`);
 });

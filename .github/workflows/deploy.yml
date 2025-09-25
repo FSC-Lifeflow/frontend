@@ -43,3 +43,7 @@ jobs:
           # Install dependencies and build (if needed)
           npm ci
           npm run build
+
+          # Restart Node.js backend (server.js)
+          pm2 startOrReload ecosystem.config.js --only backend || pm2 start server.js --name backend
+          pm2 save
