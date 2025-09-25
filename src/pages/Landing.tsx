@@ -64,6 +64,7 @@ const Landing = () => {
               variant="motivation" 
               size="lg" 
               className="text-lg px-8 py-4 h-auto"
+              onClick={handleStartFitnessJourney}
             >
               Start Your Fitness Journey
               <ArrowRight className="ml-2" />
