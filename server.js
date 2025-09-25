@@ -139,7 +139,7 @@ app.post('/api/webhook/:webhookId', async (req, res) => {
   try {
     const { webhookId } = req.params;
     
-    const response = await fetch(`https://n8n.rsweeting.com/webhook-test/${webhookId}`, {
+    const response = await fetch(`https://n8n.rsweeting.com/webhook/${webhookId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
