@@ -8,6 +8,7 @@ import { Onboarding } from "./components/Onboarding";
 import { Navigation } from "./components/Navigation";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { NotificationProvider } from "./contexts/NotificationContext";
 import { useIsMobile } from "./hooks/use-mobile";
 import { FitbitCallback } from "./components/FitbitCallback";
 import { ThemeProvider } from "next-themes";
@@ -68,22 +69,17 @@ const AppContent = () => {
 const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <AuthProvider>
-              <Routes>
-                {/* Public route for Fitbit OAuth callback */}
-                <Route path="/fitbit/callback" element={<FitbitCallback />} />
-                {/* Delegate the app (public + protected) to AppContent */}
-                <Route path="/*" element={<AppContent />} />
-              </Routes>
-            </AuthProvider>
-          </BrowserRouter>
-        </TooltipProvider>
-      </ThemeProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <NotificationProvider>
+              <AppContent />
+            </NotificationProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
     </QueryClientProvider>
   );
 };

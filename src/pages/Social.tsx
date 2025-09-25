@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { WellnessLayout } from "@/components/WellnessLayout";
 import { WellnessCard } from "@/components/WellnessCard";
 import { Button } from "@/components/ui/button";
@@ -16,9 +16,12 @@ import {
   Crown,
   Medal,
   Award,
-  Users
+  Users,
+  Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { userService, type SearchUser } from "@/services/userService";
+import { friendService } from "@/services/friendService";
 
 // Mock data
 const mockFriends = [
@@ -52,6 +55,9 @@ export default function Social() {
   const [searchQuery, setSearchQuery] = useState("");
   const [newPost, setNewPost] = useState("");
   const [showPrivacyPrompt, setShowPrivacyPrompt] = useState(!localStorage.getItem('socialOptIn'));
+  const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
 
   const handleOptIn = () => {
     localStorage.setItem('socialOptIn', 'true');
@@ -62,11 +68,56 @@ export default function Social() {
     });
   };
 
-  const handleSearch = () => {
-    toast({
-      title: "Search Results",
-      description: `Searching for users matching "${searchQuery}"...`,
-    });
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const results = await userService.searchUsers(searchQuery.trim());
+      setSearchResults(results);
+      setShowSearchResults(true);
+      
+      if (results.length === 0) {
+        toast({
+          title: "No Results",
+          description: `No users found matching "${searchQuery}"`,
+        });
+      } else {
+        toast({
+          title: "Search Results",
+          description: `Found ${results.length} user${results.length === 1 ? '' : 's'} matching "${searchQuery}"`,
+        });
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      toast({
+        title: "Search Error",
+        description: "Failed to search for users. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleAddFriend = async (user: SearchUser) => {
+    try {
+      await friendService.sendFriendRequest(user.id);
+      toast({
+        title: "Friend Request Sent",
+        description: `Friend request sent to ${user.first_name} ${user.last_name}`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send friend request",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleCreatePost = () => {
@@ -78,6 +129,21 @@ export default function Social() {
       setNewPost("");
     }
   };
+
+  // Handle search on Enter key press
+  const handleSearchKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
+
+  // Clear search results when search query is cleared
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+    }
+  }, [searchQuery]);
 
   if (showPrivacyPrompt) {
     return (
@@ -177,16 +243,67 @@ export default function Social() {
             {/* Friend Search */}
             <WellnessCard>
               <h3 className="font-semibold mb-4">Find Friends</h3>
-              <div className="flex gap-2">
+              <div className="flex gap-2 mb-4">
                 <Input
-                  placeholder="Search by username..."
+                  placeholder="Search by name or username..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyPress={handleSearchKeyPress}
                 />
-                <Button variant="zen" size="sm" onClick={handleSearch}>
-                  <Search className="w-4 h-4" />
+                <Button 
+                  variant="zen" 
+                  size="sm" 
+                  onClick={handleSearch}
+                  disabled={isSearching}
+                >
+                  {isSearching ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Search className="w-4 h-4" />
+                  )}
                 </Button>
               </div>
+              
+              {/* Search Results */}
+              {showSearchResults && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium text-muted-foreground">
+                    Search Results ({searchResults.length})
+                  </h4>
+                  {searchResults.length > 0 ? (
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {searchResults.map((user) => (
+                        <div key={user.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/30">
+                          <Avatar className="w-10 h-10">
+                            <AvatarFallback className="bg-gradient-primary text-white">
+                              {user.first_name[0]}{user.last_name[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {user.first_name} {user.last_name}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {user.username ? `@${user.username}` : user.email}
+                            </p>
+                          </div>
+                          <Button 
+                            variant="zen" 
+                            size="sm"
+                            onClick={() => handleAddFriend(user)}
+                          >
+                            <UserPlus className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No users found matching your search
+                    </p>
+                  )}
+                </div>
+              )}
             </WellnessCard>
 
             {/* Leaderboard */}

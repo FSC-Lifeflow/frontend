@@ -1,15 +1,59 @@
+import { useState, useEffect } from "react";
 import { WellnessLayout } from "@/components/WellnessLayout";
 import { WellnessCard } from "@/components/WellnessCard";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { authService } from "@/services/authService";
 import { Settings as SettingsIcon, Bell, Shield, Smartphone, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
 
 export default function Settings() {
-  const { theme, setTheme, resolvedTheme } = useTheme();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [socialPrivacy, setSocialPrivacy] = useState(true);
+  const [loading, setLoading] = useState(true);
 
-  const isDark = (theme === "system" ? resolvedTheme === "dark" : theme === "dark") || false;
+  // Load user's current social privacy setting
+  useEffect(() => {
+    const loadUserSettings = async () => {
+      if (user) {
+        setSocialPrivacy(user.social_privacy ?? true);
+        setLoading(false);
+      }
+    };
+    loadUserSettings();
+  }, [user]);
+
+  // Handle social privacy toggle with auto-save
+  const handleSocialPrivacyChange = async (newValue: boolean) => {
+    if (!user?.id) return;
+
+    try {
+      setSocialPrivacy(newValue);
+      
+      await authService.updateUserProfile(user.id, {
+        social_privacy: newValue,
+      });
+
+      toast({
+        title: "Privacy Setting Updated",
+        description: `Social features ${newValue ? 'enabled' : 'disabled'}`,
+      });
+    } catch (error) {
+      console.error('❌ Failed to update social privacy:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update privacy setting. Please try again.",
+        variant: "destructive",
+      });
+      
+      // Revert the switch state on error
+      setSocialPrivacy(!newValue);
+    }
+  };
 
   return (
     <WellnessLayout>
@@ -58,10 +102,14 @@ export default function Settings() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <Label>Profile Visibility</Label>
-                    <p className="text-sm text-muted-foreground">Allow others to find your profile</p>
+                    <Label>Social Features</Label>
+                    <p className="text-sm text-muted-foreground">Allow others to find and connect with you</p>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch 
+                    checked={socialPrivacy}
+                    onCheckedChange={handleSocialPrivacyChange}
+                    disabled={loading}
+                  />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>

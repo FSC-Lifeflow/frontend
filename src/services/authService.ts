@@ -12,6 +12,7 @@ type User = {
   last_name: string;
   email: string;
   created_at: string;
+  social_privacy?: boolean;
 };
 
 /**
@@ -318,6 +319,10 @@ export const authService = {
    */
   async updateUserProfile(userId: string, updates: Partial<User>) {
     try {
+      console.log('🔧 updateUserProfile called with:', updates);
+      console.log('🔧 social_privacy in updates:', updates.social_privacy);
+      console.log('🔧 social_privacy type:', typeof updates.social_privacy);
+      
       const { error } = await supabase
         .from('users')
         .update(updates)
@@ -327,6 +332,8 @@ export const authService = {
         console.error('❌ Failed to update user profile:', error);
         throw new Error('Failed to update user profile.');
       }
+      
+      console.log('✅ Profile update successful');
     } catch (error) {
       throw error;
     }
