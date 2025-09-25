@@ -1,12 +1,11 @@
-import { WellnessLayout } from "./WellnessLayout";
-import { WellnessCard } from "./WellnessCard";
-import { CaloriesChart } from "./CaloriesChart";
-import { GoogleCalendar } from "./GoogleCalendar";
-import { FitbitData } from "./FitbitData";
+import { WellnessLayout } from "../components/WellnessLayout";
+import { WellnessCard } from "../components/WellnessCard";
+import { CaloriesChart } from "../components/CaloriesChart";
+import { GoogleCalendar } from "../components/GoogleCalendar";
+import { FitbitData } from "../components/FitbitData";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { useAuth } from "@/contexts/AuthContext";
 import { 
   Activity, 
   Calendar, 
@@ -17,10 +16,8 @@ import {
   ExternalLink
 } from "lucide-react";
 
-export function Dashboard() {
+export default function Dashboard() {
   
-  const { user } = useAuth();
-
   // Mock data for demonstration
   const todayStats = {
     steps: 7842,
@@ -53,9 +50,7 @@ export function Dashboard() {
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            Good morning, {user?.first_name || 'there'}!
-          </h1>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Good morning, Sarah!</h1>
           <p className="text-muted-foreground flex items-center gap-2">
             <Sun className="w-4 h-4" />
             Ready to make today count? You're 3 days into your streak! 🔥
@@ -76,7 +71,6 @@ export function Dashboard() {
                   3 day streak
                 </Badge>
               </div>
-
               <FitbitData />
             </WellnessCard>
 

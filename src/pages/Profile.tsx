@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+// Custom layout and card components for consistent UI
 import { WellnessLayout } from "@/components/WellnessLayout";
 import { WellnessCard } from "@/components/WellnessCard";
+// UI components from shadcn/ui
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,43 +11,120 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { User, Upload, Save } from "lucide-react";
+// Custom hooks and services
 import { useToast } from "@/hooks/use-toast";
+import { authService } from "@/services/authService";
 
+/**
+ * Profile component - Displays and allows editing of user profile information
+ * Handles personal details, fitness preferences, and privacy settings
+ */
 export default function Profile() {
   const { toast } = useToast();
+  const [userId, setUserId] = useState<string | null>(null);
+  
+  // Profile data with default values
   const [profileData, setProfileData] = useState({
-    name: "Sarah Johnson",
-    email: "sarah@example.com",
+    name: "",
+    email: "",
     profilePicture: "",
-    fitnessLevel: "intermediate",
-    primaryGoals: "weight-loss",
-    exercisePreferences: "strength-cardio",
-    weeklyFrequency: "4-5-days",
-    sessionDuration: "30-45-min",
-    equipmentAccess: "full-gym",
+    fitnessLevel: "",
+    primaryGoals: "",
+    exercisePreferences: "",
+    weeklyFrequency: "",
+    sessionDuration: "",
+    equipmentAccess: "",
     physicalLimitations: "",
     socialPrivacy: true
   });
 
-  const handleSave = () => {
-    toast({
-      title: "Profile Updated",
-      description: "Your profile settings have been saved successfully.",
-    });
+  // Fetch user data on component mount
+  useEffect(() => {
+    const fetchUserData = async () => {
+      const user = await authService.getCurrentUser();
+      if (user) {
+        setUserId(user.id);
+        // Update profile data with user information
+        setProfileData(prev => ({
+          ...prev,
+          name: `${user.first_name} ${user.last_name}`,
+          email: user.email,
+          fitnessLevel: user.fitness_level || "",
+          primaryGoals: user.primary_goals || "",
+          exercisePreferences: user.exercise_preferences || "",
+          weeklyFrequency: user.weekly_frequency || "",
+          sessionDuration: user.session_duration || "",
+          equipmentAccess: user.equipment_access || "",
+          physicalLimitations: user.physical_limitations || "",
+          socialPrivacy: user.social_privacy !== false,
+        }));
+      }
+    };
+
+    fetchUserData();
+  }, []);
+
+  /**
+   * Handles saving the updated profile information
+   * Splits the full name into first and last name before saving
+   */
+  const handleSave = async () => {
+    if (!userId) return;
+
+    try {
+      // Split full name into first and last name
+      const [firstName, ...lastNameParts] = profileData.name.split(' ');
+      const lastName = lastNameParts.join(' ');
+
+      // Prepare and send update to the server
+      await authService.updateUserProfile(userId, {
+        first_name: firstName,
+        last_name: lastName,
+        fitness_level: profileData.fitnessLevel,
+        primary_goals: profileData.primaryGoals,
+        exercise_preferences: profileData.exercisePreferences,
+        weekly_frequency: profileData.weeklyFrequency,
+        session_duration: profileData.sessionDuration,
+        equipment_access: profileData.equipmentAccess,
+        physical_limitations: profileData.physicalLimitations,
+        social_privacy: profileData.socialPrivacy,
+      });
+
+      // Show success notification
+      toast({
+        title: "Profile Updated",
+        description: "Your profile settings have been saved successfully.",
+      });
+    } catch (error) {
+      // Show error notification
+      toast({
+        title: "Error",
+        description: "Failed to update profile. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
+  /**
+   * Generic input change handler
+   * @param field 
+   * @param value 
+   */
   const handleInputChange = (field: string, value: string | boolean) => {
     setProfileData(prev => ({ ...prev, [field]: value }));
   };
 
+  // Render the profile page
   return (
     <WellnessLayout>
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
+          {/* Page Header */}
           <h1 className="text-3xl font-bold text-foreground mb-8">Profile Settings</h1>
 
+          {/* Main Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Profile Information */}
+            {/* Left Column - Personal Information */}
             <WellnessCard className="lg:col-span-2">
               <div className="flex items-center gap-2 mb-6">
                 <User className="w-5 h-5 text-primary" />
@@ -53,7 +132,7 @@ export default function Profile() {
               </div>
 
               <div className="space-y-6">
-                {/* Profile Picture */}
+                {/* Profile Picture Section */}
                 <div className="flex items-center gap-4">
                   <Avatar className="w-20 h-20">
                     <AvatarImage src={profileData.profilePicture} />
@@ -67,7 +146,7 @@ export default function Profile() {
                   </Button>
                 </div>
 
-                {/* Basic Info */}
+                {/* Basic Info Form */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="name">Full Name</Label>
@@ -83,14 +162,15 @@ export default function Profile() {
                       id="email"
                       type="email"
                       value={profileData.email}
-                      onChange={(e) => handleInputChange('email', e.target.value)}
+                      readOnly
+                      className="bg-gray-50 cursor-not-allowed"
                     />
                   </div>
                 </div>
               </div>
             </WellnessCard>
 
-            {/* Privacy Settings */}
+            {/* Right Column - Privacy Settings */}
             <WellnessCard>
               <h3 className="font-semibold mb-4">Privacy Settings</h3>
               <div className="space-y-4">
@@ -107,11 +187,12 @@ export default function Profile() {
               </div>
             </WellnessCard>
 
-            {/* Fitness Goals */}
+            {/* Full Width Bottom Card - Fitness Preferences */}
             <WellnessCard className="lg:col-span-3">
               <h2 className="text-xl font-semibold mb-6">Fitness Goal Specifications</h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Fitness Level */}
                 <div>
                   <Label>Fitness Level</Label>
                   <Select value={profileData.fitnessLevel} onValueChange={(value) => handleInputChange('fitnessLevel', value)}>
@@ -126,6 +207,7 @@ export default function Profile() {
                   </Select>
                 </div>
 
+                {/* Primary Goals */}
                 <div>
                   <Label>Primary Goals</Label>
                   <Select value={profileData.primaryGoals} onValueChange={(value) => handleInputChange('primaryGoals', value)}>
@@ -142,6 +224,7 @@ export default function Profile() {
                   </Select>
                 </div>
 
+                {/* Exercise Preferences */}
                 <div>
                   <Label>Exercise Preferences</Label>
                   <Select value={profileData.exercisePreferences} onValueChange={(value) => handleInputChange('exercisePreferences', value)}>
@@ -161,6 +244,7 @@ export default function Profile() {
                   </Select>
                 </div>
 
+                {/* Weekly Frequency */}
                 <div>
                   <Label>Weekly Frequency</Label>
                   <Select value={profileData.weeklyFrequency} onValueChange={(value) => handleInputChange('weeklyFrequency', value)}>
@@ -175,6 +259,7 @@ export default function Profile() {
                   </Select>
                 </div>
 
+                {/* Session Duration */}
                 <div>
                   <Label>Session Duration</Label>
                   <Select value={profileData.sessionDuration} onValueChange={(value) => handleInputChange('sessionDuration', value)}>
@@ -190,6 +275,7 @@ export default function Profile() {
                   </Select>
                 </div>
 
+                {/* Equipment Access */}
                 <div>
                   <Label>Equipment Access</Label>
                   <Select value={profileData.equipmentAccess} onValueChange={(value) => handleInputChange('equipmentAccess', value)}>
@@ -206,6 +292,7 @@ export default function Profile() {
                 </div>
               </div>
 
+              {/* Physical Limitations Textarea */}
               <div className="mt-6">
                 <Label htmlFor="limitations">Physical Limitations</Label>
                 <Textarea
@@ -217,6 +304,7 @@ export default function Profile() {
                 />
               </div>
 
+              {/* Save Button */}
               <div className="flex justify-end mt-6">
                 <Button variant="motivation" onClick={handleSave}>
                   <Save className="w-4 h-4 mr-2" />

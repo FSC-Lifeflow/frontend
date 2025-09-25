@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { WellnessCard } from "@/components/WellnessCard";
 import { 
@@ -23,10 +24,15 @@ import {
 
 const Landing = () => {
   const [isVisible, setIsVisible] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     setIsVisible(true);
   }, []);
+
+  const handleStartFitnessJourney = () => {
+    navigate('/register');
+  };
 
   return (
     <div className="min-h-screen bg-gradient-wellness">
@@ -456,9 +462,9 @@ const Landing = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                      <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white text-xs font-bold">S</div>
+                      <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white text-xs font-bold">M</div>
                       <div className="flex-1">
-                        <div className="text-sm font-medium">Sarah hit a 7-day streak!</div>
+                        <div className="text-sm font-medium">Maya hit a 7-day streak!</div>
                         <div className="text-xs text-muted-foreground">4 hours ago</div>
                       </div>
                     </div>
@@ -504,6 +510,7 @@ const Landing = () => {
               variant="motivation" 
               size="lg" 
               className="text-lg px-12 py-4 h-auto bg-white text-primary hover:bg-white/90"
+              onClick={handleStartFitnessJourney}
             >
               Start Your Fitness Revolution
               <ArrowRight className="ml-2" />
