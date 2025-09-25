@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { WellnessCard } from "./WellnessCard";
 import { X, Send, Bot, User, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Message {
   id: string;
@@ -17,10 +18,11 @@ interface ChatInterfaceProps {
 }
 
 export function ChatInterface({ onClose }: ChatInterfaceProps) {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
-      content: "Hi Sarah! 👋 I'm your AI wellness coach. I've been analyzing your recent activity and I'm impressed with your consistency! How are you feeling about your progress this week?",
+      content: `Hi ${user?.first_name || 'there'}! 👋 I'm your AI wellness coach. I've been analyzing your recent activity and I'm impressed with your consistency! How are you feeling about your progress this week?`,
       isUser: false,
       timestamp: new Date(),
     }
@@ -37,6 +39,34 @@ export function ChatInterface({ onClose }: ChatInterfaceProps) {
     scrollToBottom();
   }, [messages]);
 
+  const sendChatRequest = async (userMessage: string) => {
+    try {
+      const response = await fetch(`/api/webhook/${import.meta.env.VITE_WEBHOOK_MASTER}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          timestamp: new Date().toISOString(),
+          action: 'chat_message',
+          message: userMessage,
+          source: 'chat_interface'
+        }),
+      });
+
+      if (response.ok) {
+        console.log('Chat webhook called successfully');
+        return response.text();
+      } else {
+        console.error('Chat webhook call failed:', response.statusText);
+        return null;
+      }
+    } catch (error) {
+      console.error('Error calling chat webhook:', error);
+      return null;
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
 
@@ -47,29 +77,45 @@ export function ChatInterface({ onClose }: ChatInterfaceProps) {
       timestamp: new Date(),
     };
 
+    const userMessageContent = inputValue;
     setMessages(prev => [...prev, newMessage]);
     setInputValue("");
     setIsTyping(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const responses = [
-        "That's wonderful to hear! Based on your sleep patterns, I notice you're getting better rest on days you do evening yoga. Should I add more yoga sessions to help with your sleep quality?",
-        "I see you've been consistent with your morning workouts - that's fantastic! Your energy levels seem higher on those days. How do you feel about increasing the intensity slightly?",
-        "Looking at your data, you're 78% of the way to your weekly goal. Small wins add up! What's motivating you most right now?",
-        "Your heart rate recovery has improved by 15% this month! This shows your cardiovascular fitness is getting stronger. Keep up the great work!"
-      ];
+    try {
+      // Call the webhook with the user's message
+      const webhookResponse = await sendChatRequest(userMessageContent);
+      
+      let aiResponseContent = "I'm sorry, I'm having trouble processing your request right now. Please try again.";
+      
+
+      console.log('Webhook response:', webhookResponse);
+      if (webhookResponse) {
+        aiResponseContent = webhookResponse;
+      }
       
       const aiResponse: Message = {
         id: Date.now().toString(),
-        content: responses[Math.floor(Math.random() * responses.length)],
+        content: aiResponseContent,
         isUser: false,
         timestamp: new Date(),
       };
 
       setMessages(prev => [...prev, aiResponse]);
+    } catch (error) {
+      console.error('Error processing chat message:', error);
+      
+      const errorResponse: Message = {
+        id: Date.now().toString(),
+        content: "I'm experiencing technical difficulties. Please try again in a moment.",
+        isUser: false,
+        timestamp: new Date(),
+      };
+
+      setMessages(prev => [...prev, errorResponse]);
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -91,7 +137,7 @@ export function ChatInterface({ onClose }: ChatInterfaceProps) {
             <div>
               <h3 className="font-semibold">AI Wellness Coach</h3>
               <p className="text-sm text-muted-foreground flex items-center gap-1">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                 Online & ready to help
               </p>
             </div>

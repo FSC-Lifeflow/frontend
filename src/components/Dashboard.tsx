@@ -2,9 +2,11 @@ import { WellnessLayout } from "./WellnessLayout";
 import { WellnessCard } from "./WellnessCard";
 import { CaloriesChart } from "./CaloriesChart";
 import { GoogleCalendar } from "./GoogleCalendar";
+import { FitbitData } from "./FitbitData";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/contexts/AuthContext";
 import { 
   Activity, 
   Calendar, 
@@ -17,6 +19,8 @@ import {
 
 export function Dashboard() {
   
+  const { user } = useAuth();
+
   // Mock data for demonstration
   const todayStats = {
     steps: 7842,
@@ -49,7 +53,9 @@ export function Dashboard() {
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Good morning, Sarah!</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            Good morning, {user?.first_name || 'there'}!
+          </h1>
           <p className="text-muted-foreground flex items-center gap-2">
             <Sun className="w-4 h-4" />
             Ready to make today count? You're 3 days into your streak! 🔥
@@ -59,7 +65,7 @@ export function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main content area */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Today's Progress */}
+            {/* Fitbit Health Data */}
             <WellnessCard className="animate-fade-in">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold flex items-center gap-2">
@@ -71,39 +77,7 @@ export function Dashboard() {
                 </Badge>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center">
-                  <div className="mb-2">
-                    <Progress value={(todayStats.steps / todayStats.stepGoal) * 100} className="h-2" />
-                  </div>
-                  <p className="text-2xl font-bold text-primary">{todayStats.steps.toLocaleString()}</p>
-                  <p className="text-sm text-muted-foreground">of {todayStats.stepGoal.toLocaleString()} steps</p>
-                </div>
-
-                <div className="text-center">
-                  <div className="mb-2">
-                    <Progress value={(todayStats.calories / todayStats.calorieGoal) * 100} className="h-2" />
-                  </div>
-                  <p className="text-2xl font-bold text-secondary">{todayStats.calories}</p>
-                  <p className="text-sm text-muted-foreground">of {todayStats.calorieGoal} calories</p>
-                </div>
-
-                <div className="text-center">
-                  <div className="mb-2">
-                    <Progress value={(todayStats.workoutTime / todayStats.workoutGoal) * 100} className="h-2" />
-                  </div>
-                  <p className="text-2xl font-bold text-primary">{todayStats.workoutTime}m</p>
-                  <p className="text-sm text-muted-foreground">of {todayStats.workoutGoal}m active</p>
-                </div>
-
-                <div className="text-center">
-                  <div className="mb-2">
-                    <Progress value={(todayStats.sleepHours / todayStats.sleepGoal) * 100} className="h-2" />
-                  </div>
-                  <p className="text-2xl font-bold text-primary">{todayStats.sleepHours}h</p>
-                  <p className="text-sm text-muted-foreground">of {todayStats.sleepGoal}h sleep</p>
-                </div>
-              </div>
+              <FitbitData />
             </WellnessCard>
 
             {/* Google Calendar Integration */}
