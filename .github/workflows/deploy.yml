@@ -1,0 +1,48 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [ production ]  # or whatever branch you want to deploy from
+  pull_request:
+    branches: [ production ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js (if you're using Node.js)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Build project
+      run: npm run build
+    
+    - name: Deploy to VPS
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT }}
+        script: |
+          # Navigate to your web directory
+          cd /var/www/rsweeting
+          
+          # Pull latest changes
+          git pull origin main
+          
+          # Install dependencies and build (if needed)
+          npm ci
+          npm run build
+          
+          # Restart web server if needed
+          sudo systemctl reload nginx
