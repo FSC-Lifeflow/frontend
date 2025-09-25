@@ -38,7 +38,7 @@ jobs:
           cd /var/www/rsweeting/frontend
           
           # Pull latest changes
-          git pull origin main
+          git pull origin production
           
           # Install dependencies and build (if needed)
           npm ci
