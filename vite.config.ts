@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => ({
       '/api/webhook': {
         target: 'http://localhost:5678',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/webhook/, '/webhook')
+        rewrite: (path) => path.replace(/^\/api\/webhook/, '/webhook-test')
       }
     }
   },

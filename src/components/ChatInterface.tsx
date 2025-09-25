@@ -39,7 +39,7 @@ export function ChatInterface({ onClose }: ChatInterfaceProps) {
 
   const sendChatRequest = async (userMessage: string) => {
     try {
-      const response = await fetch(`/api/webhook/${import.meta.env.VITE_TEST_WEBHOOK_ID}`, {
+      const response = await fetch(`/api/webhook/${import.meta.env.VITE_WEBHOOK_MASTER}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

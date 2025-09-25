@@ -9,7 +9,7 @@ import { Navigation } from "./components/Navigation";
 import { FitbitCallback } from "./components/FitbitCallback";
 import { useIsMobile } from "./hooks/use-mobile";
 import Landing from "./pages/Landing";
-import Dashboard from "./pages/Dashboard";
+import { Dashboard } from "./components/Dashboard";
 import Profile from "./pages/Profile";
 import Social from "./pages/Social";
 import Settings from "./pages/Settings";
