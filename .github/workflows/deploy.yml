@@ -35,7 +35,7 @@ jobs:
         port: ${{ secrets.VPS_PORT }}
         script: |
           # Navigate to your web directory
-          cd /var/www/rsweeting
+          cd /var/www/rsweeting/frontend
           
           # Pull latest changes
           git pull origin main
