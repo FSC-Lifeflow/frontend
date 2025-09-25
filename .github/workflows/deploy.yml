@@ -43,6 +43,3 @@ jobs:
           # Install dependencies and build (if needed)
           npm ci
           npm run build
-          
-          # Restart web server if needed
-          sudo systemctl reload nginx
