@@ -6,6 +6,7 @@ import { FitbitData } from "./FitbitData";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/contexts/AuthContext";
 import { 
   Activity, 
   Calendar, 
@@ -18,6 +19,8 @@ import {
 
 export function Dashboard() {
   
+  const { user } = useAuth();
+
   // Mock data for demonstration
   const todayStats = {
     steps: 7842,
@@ -50,7 +53,9 @@ export function Dashboard() {
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Good morning, Sarah!</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            Good morning, {user?.first_name || 'there'}!
+          </h1>
           <p className="text-muted-foreground flex items-center gap-2">
             <Sun className="w-4 h-4" />
             Ready to make today count? You're 3 days into your streak! 🔥
