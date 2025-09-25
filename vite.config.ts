@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => ({
       '/api/webhook': {
         target: 'https://n8n.rsweeting.com',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/webhook/, '/webhook-test')
+        rewrite: (path) => path.replace(/^\/api\/webhook\//, '/webhook-test/')
       }
     }
   },
