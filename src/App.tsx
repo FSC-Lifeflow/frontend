@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Onboarding } from "./components/Onboarding";
 import { Navigation } from "./components/Navigation";
+import { FitbitCallback } from "./components/FitbitCallback";
 import { useIsMobile } from "./hooks/use-mobile";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
@@ -43,6 +44,9 @@ const App = () => {
           <Routes>
             {/* Landing page route - no navigation */}
             <Route path="/landing" element={<Landing />} />
+            
+            {/* Fitbit OAuth callback - no navigation */}
+            <Route path="/fitbit/callback" element={<FitbitCallback />} />
             
             {/* App routes with navigation */}
             <Route path="/*" element={

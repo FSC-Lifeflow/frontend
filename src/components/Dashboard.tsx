@@ -1,8 +1,8 @@
-import { WellnessLayout } from "../components/WellnessLayout";
-import { WellnessCard } from "../components/WellnessCard";
-import { CaloriesChart } from "../components/CaloriesChart";
-import { GoogleCalendar } from "../components/GoogleCalendar";
-import { FitbitData } from "../components/FitbitData";
+import { WellnessLayout } from "./WellnessLayout";
+import { WellnessCard } from "./WellnessCard";
+import { CaloriesChart } from "./CaloriesChart";
+import { GoogleCalendar } from "./GoogleCalendar";
+import { FitbitData } from "./FitbitData";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,7 @@ import {
   ExternalLink
 } from "lucide-react";
 
-export default function Dashboard() {
+export function Dashboard() {
   
   // Mock data for demonstration
   const todayStats = {
