@@ -237,6 +237,27 @@ export default function Profile() {
     }
   };
 
+  const handleUnfriend = async (friendId: string) => {
+    try {
+      await friendService.unfriend(friendId);
+
+      // This updates the UI by removing the unfriended user
+      setFriends(prevFriends => prevFriends.filter(friend => friend.id !== friendId));
+
+      toast({
+        title: "Success",
+        description: "Friend removed successfully",
+      });
+    } catch (error) {
+      console.error('Failed to remove friend:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to remove friend",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "friend_request":
@@ -593,7 +614,7 @@ export default function Profile() {
             </TabsContent>
 
             {/* Friends Tab */}
-            <TabsContent value="friends" className="space-y-6 mt-6">
+            <TabsContent value="friends" className="space-y-4">
               <WellnessCard>
                 <div className="flex items-center gap-2 mb-6">
                   <Users className="w-5 h-5 text-primary" />
@@ -604,39 +625,48 @@ export default function Profile() {
                 </div>
 
                 {loadingFriends ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-6 h-6 animate-spin mr-2" />
-                    <span className="text-muted-foreground">Loading friends...</span>
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   </div>
                 ) : friends.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="space-y-4">
                     {friends.map((friend) => (
-                      <div key={friend.id} className="p-4 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="w-12 h-12">
-                            <AvatarFallback className="bg-gradient-primary text-white">
-                              {friend.first_name[0]}{friend.last_name[0]}
+                      <div key={friend.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={friend.avatar_url} alt={friend.first_name} />
+                            <AvatarFallback>
+                              {friend.first_name?.[0]}{friend.last_name?.[0]}
                             </AvatarFallback>
                           </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-medium truncate">
-                              {friend.first_name} {friend.last_name}
-                            </h3>
-                            <p className="text-sm text-muted-foreground truncate">
-                              {friend.username ? `@${friend.username}` : friend.email}
-                            </p>
+                          <div>
+                            <p className="font-medium">{friend.first_name} {friend.last_name}</p>
+                            <p className="text-sm text-muted-foreground">@{friend.username}</p>
                           </div>
                         </div>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleUnfriend(friend.id)}
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          <UserX className="h-4 w-4 mr-2" />
+                          Unfriend
+                        </Button>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Users className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                    <h3 className="text-lg font-medium mb-2">No Friends Yet</h3>
-                    <p className="text-sm">
-                      Start connecting with others by searching for users on the Social page!
-                    </p>
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>No friends yet</p>
+                    <Button 
+                      variant="link" 
+                      className="mt-2"
+                      onClick={() => setActiveTab("social")}
+                    >
+                      Find friends
+                    </Button>
                   </div>
                 )}
               </WellnessCard>

@@ -70,6 +70,18 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          {/* <div className="flex min-h-screen w-full">
+            <Navigation />
+            <main className={`flex-1 ${!isMobile ? 'ml-64' : 'mt-16 mb-16'}`}>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/social" element={<Social />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </main>
+          </div> */}
           <AuthProvider>
             <NotificationProvider>
               <AppContent />
