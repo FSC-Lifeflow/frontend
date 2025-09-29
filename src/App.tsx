@@ -8,6 +8,7 @@ import { Onboarding } from "./components/Onboarding";
 import { Navigation } from "./components/Navigation";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { NotificationProvider } from "./contexts/NotificationContext";
 import { useIsMobile } from "./hooks/use-mobile";
 import { FitbitCallback } from "./components/FitbitCallback";
 import { ThemeProvider } from "next-themes";
@@ -80,6 +81,15 @@ const App = () => {
                 {/* Delegate the app (public + protected) to AppContent */}
                 <Route path="/*" element={<AppContent />} />
               </Routes>
+            </main>
+          </div> */}
+          <AuthProvider>
+            <NotificationProvider>
+              <AppContent />
+            </NotificationProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
             </AuthProvider>
           </BrowserRouter>
         </TooltipProvider>

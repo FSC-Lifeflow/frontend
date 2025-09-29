@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { ChatInterface } from "./ChatInterface";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNotifications } from "@/contexts/NotificationContext";
 import { 
   Home, 
   User, 
@@ -28,6 +30,7 @@ export function Navigation() {
   const location = useLocation();
   const isMobile = useIsMobile();
   const { logout } = useAuth();
+  const { unreadCount } = useNotifications();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -71,6 +74,7 @@ export function Navigation() {
             <nav className="p-4">
               {navigationItems.map((item) => {
                 const isActive = location.pathname === item.path;
+                const isProfile = item.path === "/profile";
                 return (
                   <Link
                     key={item.path}
@@ -82,7 +86,17 @@ export function Navigation() {
                         : 'hover:bg-muted'
                     }`}
                   >
-                    <item.icon className="w-5 h-5" />
+                    <div className="relative">
+                      <item.icon className="w-5 h-5" />
+                      {isProfile && unreadCount > 0 && (
+                        <Badge 
+                          variant="destructive" 
+                          className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs"
+                        >
+                          {unreadCount > 99 ? '99+' : unreadCount}
+                        </Badge>
+                      )}
+                    </div>
                     <span>{item.label}</span>
                   </Link>
                 );
@@ -105,6 +119,7 @@ export function Navigation() {
           <div className="flex items-center justify-around p-2">
             {navigationItems.map((item) => {
               const isActive = location.pathname === item.path;
+              const isProfile = item.path === "/profile";
               return (
                 <Link
                   key={item.path}
@@ -115,7 +130,17 @@ export function Navigation() {
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  <item.icon className="w-5 h-5" />
+                  <div className="relative">
+                    <item.icon className="w-5 h-5" />
+                    {isProfile && unreadCount > 0 && (
+                      <Badge 
+                        variant="destructive" 
+                        className="absolute -top-2 -right-2 h-4 w-4 p-0 flex items-center justify-center text-xs"
+                      >
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </Badge>
+                    )}
+                  </div>
                   <span className="text-xs truncate">{item.label}</span>
                 </Link>
               );
@@ -142,6 +167,7 @@ export function Navigation() {
           <div className="space-y-2 mb-8">
             {navigationItems.map((item) => {
               const isActive = location.pathname === item.path;
+              const isProfile = item.path === "/profile";
               return (
                 <Link
                   key={item.path}
@@ -152,7 +178,17 @@ export function Navigation() {
                       : 'hover:bg-muted'
                   }`}
                 >
-                  <item.icon className="w-5 h-5" />
+                  <div className="relative">
+                    <item.icon className="w-5 h-5" />
+                    {isProfile && unreadCount > 0 && (
+                      <Badge 
+                        variant="destructive" 
+                        className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs"
+                      >
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </Badge>
+                    )}
+                  </div>
                   <span>{item.label}</span>
                 </Link>
               );
