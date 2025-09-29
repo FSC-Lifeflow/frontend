@@ -71,25 +71,11 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <TooltipProvider>
-          <Toaster />
-          <Sonner />
           <BrowserRouter>
             <AuthProvider>
-              <Routes>
-                {/* Public route for Fitbit OAuth callback */}
-                <Route path="/fitbit/callback" element={<FitbitCallback />} />
-                {/* Delegate the app (public + protected) to AppContent */}
-                <Route path="/*" element={<AppContent />} />
-              </Routes>
-            </main>
-          </div> */}
-          <AuthProvider>
-            <NotificationProvider>
-              <AppContent />
-            </NotificationProvider>
-          </AuthProvider>
-        </BrowserRouter>
-      </TooltipProvider>
+              <NotificationProvider>
+                <AppContent />
+              </NotificationProvider>
             </AuthProvider>
           </BrowserRouter>
         </TooltipProvider>
