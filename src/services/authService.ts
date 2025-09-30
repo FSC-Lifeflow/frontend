@@ -147,10 +147,12 @@ export const authService = {
     try {
       // Configure OAuth with Google provider
       // Redirects to Google's consent screen, then back to /auth/callback
+      // Use VITE_APP_URL for production, fallback to window.location.origin for local dev
+      const redirectUrl = import.meta.env.VITE_APP_URL || window.location.origin;
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${redirectUrl}/auth/callback`,
           queryParams: {
             access_type: 'offline',  // Request refresh token
             prompt: 'consent',       // Force consent screen to get refresh token
