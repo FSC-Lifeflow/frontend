@@ -40,6 +40,59 @@ app.get('/api/fitbit/activities/:date', async (req, res) => {
   }
 });
 
+// Calories time series (explicit routes to avoid optional param issues)
+app.get('/api/fitbit/calories/:endDate', async (req, res) => {
+  try {
+    const { endDate } = req.params;
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Authorization header required' });
+    }
+
+    const response = await fetch(`https://api.fitbit.com/1/user/-/activities/calories/date/${endDate}/7d.json`, {
+      headers: { 'Authorization': authHeader },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return res.status(response.status).json({ error: errorText });
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Fitbit calories API error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/fitbit/calories/:endDate/:range', async (req, res) => {
+  try {
+    const { endDate, range } = req.params;
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Authorization header required' });
+    }
+
+    const response = await fetch(`https://api.fitbit.com/1/user/-/activities/calories/date/${endDate}/${range}.json`, {
+      headers: { 'Authorization': authHeader },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return res.status(response.status).json({ error: errorText });
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Fitbit calories API error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.get('/api/fitbit/sleep/:date', async (req, res) => {
   try {
     const { date } = req.params;

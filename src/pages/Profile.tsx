@@ -18,8 +18,9 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
-import { User, Upload, Save, Bell, X, Check, UserX, Loader2, Users } from "lucide-react";
+import { User, Upload, Save, Bell, X, Check, UserX, Loader2, Users, Ban, UserMinus } from "lucide-react";
 // Custom hooks and services
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -43,7 +44,17 @@ export default function Profile() {
   const [friends, setFriends] = useState<SearchUser[]>([]);
   const [loadingFriends, setLoadingFriends] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
-  
+  const [showBlockedUsers, setShowBlockedUsers] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState<Array<{
+    id: string;
+    first_name: string;
+    last_name: string;
+    username: string;
+    email: string;
+    created_at: string;
+  }>>([]);
+  const [loadingBlockedUsers, setLoadingBlockedUsers] = useState(false);
+
   // Profile data with default values
   const [profileData, setProfileData] = useState({
     name: "",
@@ -183,14 +194,30 @@ export default function Profile() {
 
   const handleRemoveNotification = async (notificationId: string) => {
     try {
+      // Find the notification to check its type
+      const notification = notifications.find(n => n.id === notificationId);
+      
+      // If it's a friend request notification, reject the friend request
+      if (notification?.type === 'friend_request' && notification.data?.friend_request_id) {
+        try {
+          await friendService.rejectFriendRequest(notification.data.friend_request_id);
+        } catch (error) {
+          console.error('Failed to reject friend request:', error);
+          // Continue with notification removal even if reject fails
+        }
+      }
+      
       await notificationService.deleteNotification(notificationId);
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
       await refreshUnreadCount(); // Refresh the global unread count
       toast({
         title: "Notification removed",
-        description: "Notification has been deleted",
+        description: notification?.type === 'friend_request' 
+          ? "Friend request declined" 
+          : "Notification has been deleted",
       });
     } catch (error) {
+      console.error('Error removing notification:', error);
       toast({
         title: "Error",
         description: "Failed to remove notification",
@@ -232,6 +259,55 @@ export default function Profile() {
       toast({
         title: "Error",
         description: "Failed to reject friend request",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleBlockUser = async (notificationId: string, senderId: string) => {
+    try {
+      if (!senderId) {
+        throw new Error('Unable to block user: No sender ID provided');
+      }
+      
+      await friendService.blockUser(senderId);
+      
+      // Remove the notification
+      await notificationService.deleteNotification(notificationId);
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      await refreshUnreadCount();
+      
+      toast({
+        title: "User Blocked",
+        description: "The user has been blocked and can no longer send you friend requests.",
+        variant: "default",
+      });
+    } catch (error) {
+      console.error('Error blocking user:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to block user. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUnfriend = async (friendId: string) => {
+    try {
+      await friendService.unfriend(friendId);
+
+      // This updates the UI by removing the unfriended user
+      setFriends(prevFriends => prevFriends.filter(friend => friend.id !== friendId));
+
+      toast({
+        title: "Success",
+        description: "Friend removed successfully",
+      });
+    } catch (error) {
+      console.error('Failed to remove friend:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to remove friend",
         variant: "destructive",
       });
     }
@@ -362,6 +438,53 @@ export default function Profile() {
     }
   };
 
+  // Add this function to load blocked users
+  const loadBlockedUsers = async () => {
+    try {
+      setLoadingBlockedUsers(true);
+      const blocked = await friendService.getBlockedUsers();
+      // Map the blocked users to the expected format
+      const formattedBlocked = blocked.map(block => ({
+        id: block.blocked_id,
+        first_name: block.user.first_name,
+        last_name: block.user.last_name,
+        username: block.user.username,
+        email: block.user.email,
+        created_at: block.created_at
+      }));
+      setBlockedUsers(formattedBlocked);
+    } catch (error) {
+      console.error('Error loading blocked users:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load blocked users. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingBlockedUsers(false);
+    }
+  };
+
+  // Function to handle unblocking a user
+  const handleUnblockUser = async (userId: string) => {
+    try {
+      await friendService.unblockUser(userId);
+      // Refresh the blocked users list
+      await loadBlockedUsers();
+      toast({
+        title: "Success",
+        description: "User has been unblocked.",
+      });
+    } catch (error) {
+      console.error('Error unblocking user:', error);
+      toast({
+        title: "Error",
+        description: "Failed to unblock user. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Render the profile page
   return (
     <WellnessLayout>
@@ -461,6 +584,19 @@ export default function Profile() {
                         onCheckedChange={(checked) => handleInputChange('socialPrivacy', checked)}
                       />
                     </div>
+                    
+                    {/* Add the Manage Blocked Users button */}
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start gap-2"
+                      onClick={() => {
+                        setShowBlockedUsers(true);
+                        loadBlockedUsers();
+                      }}
+                    >
+                      <UserMinus className="w-4 h-4" />
+                      Manage Blocked Users
+                    </Button>
                   </div>
                 </WellnessCard>
 
@@ -593,7 +729,7 @@ export default function Profile() {
             </TabsContent>
 
             {/* Friends Tab */}
-            <TabsContent value="friends" className="space-y-6 mt-6">
+            <TabsContent value="friends" className="space-y-4">
               <WellnessCard>
                 <div className="flex items-center gap-2 mb-6">
                   <Users className="w-5 h-5 text-primary" />
@@ -604,39 +740,48 @@ export default function Profile() {
                 </div>
 
                 {loadingFriends ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-6 h-6 animate-spin mr-2" />
-                    <span className="text-muted-foreground">Loading friends...</span>
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   </div>
                 ) : friends.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="space-y-4">
                     {friends.map((friend) => (
-                      <div key={friend.id} className="p-4 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="w-12 h-12">
-                            <AvatarFallback className="bg-gradient-primary text-white">
-                              {friend.first_name[0]}{friend.last_name[0]}
+                      <div key={friend.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={friend.avatar_url} alt={friend.first_name} />
+                            <AvatarFallback>
+                              {friend.first_name?.[0]}{friend.last_name?.[0]}
                             </AvatarFallback>
                           </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-medium truncate">
-                              {friend.first_name} {friend.last_name}
-                            </h3>
-                            <p className="text-sm text-muted-foreground truncate">
-                              {friend.username ? `@${friend.username}` : friend.email}
-                            </p>
+                          <div>
+                            <p className="font-medium">{friend.first_name} {friend.last_name}</p>
+                            <p className="text-sm text-muted-foreground">@{friend.username}</p>
                           </div>
                         </div>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleUnfriend(friend.id)}
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          <UserX className="h-4 w-4 mr-2" />
+                          Unfriend
+                        </Button>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Users className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                    <h3 className="text-lg font-medium mb-2">No Friends Yet</h3>
-                    <p className="text-sm">
-                      Start connecting with others by searching for users on the Social page!
-                    </p>
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>No friends yet</p>
+                    <Button 
+                      variant="link" 
+                      className="mt-2"
+                      onClick={() => setActiveTab("social")}
+                    >
+                      Find friends
+                    </Button>
                   </div>
                 )}
               </WellnessCard>
@@ -680,12 +825,12 @@ export default function Profile() {
                             
                             {/* Friend Request Actions */}
                             {notification.type === 'friend_request' && notification.data?.friend_request_id && (
-                              <div className="flex gap-2 mt-3">
+                              <div className="flex flex-wrap gap-2 mt-3">
                                 <Button
                                   size="sm"
                                   variant="default"
                                   onClick={() => handleAcceptFriendRequest(notification.id, notification.data.friend_request_id)}
-                                  className="h-7 px-3 text-xs"
+                                  className="h-7 px-3 text-xs flex-1 sm:flex-none"
                                 >
                                   <Check className="w-3 h-3 mr-1" />
                                   Accept
@@ -694,10 +839,19 @@ export default function Profile() {
                                   size="sm"
                                   variant="outline"
                                   onClick={() => handleRejectFriendRequest(notification.id, notification.data.friend_request_id)}
-                                  className="h-7 px-3 text-xs"
+                                  className="h-7 px-3 text-xs flex-1 sm:flex-none"
                                 >
                                   <UserX className="w-3 h-3 mr-1" />
                                   Decline
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleBlockUser(notification.id, notification.data?.sender_id)}
+                                  className="h-7 px-3 text-xs text-destructive hover:text-destructive flex-1 sm:flex-none"
+                                >
+                                  <Ban className="w-3 h-3 mr-1" />
+                                  Block
                                 </Button>
                               </div>
                             )}
@@ -722,6 +876,60 @@ export default function Profile() {
                   </div>
                 )}
               </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Blocked Users Modal */}
+          <Dialog open={showBlockedUsers} onOpenChange={setShowBlockedUsers}>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Manage Blocked Users</DialogTitle>
+                <DialogDescription>
+                  View and manage users you've blocked. Unblocking a user will allow them to send you friend requests.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                {loadingBlockedUsers ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  </div>
+                ) : blockedUsers.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <UserMinus className="mx-auto h-10 w-10 mb-2 opacity-50" />
+                    <p>You haven't blocked any users yet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+                    {blockedUsers.map((user) => (
+                      <div key={user.id} className="flex items-center justify-between p-3 rounded-lg border">
+                        <div>
+                          <p className="font-medium">
+                            {user.first_name} {user.last_name}
+                            {user.username && (
+                              <span className="text-muted-foreground ml-2">@{user.username}</span>
+                            )}
+                          </p>
+                          <p className="text-sm text-muted-foreground">{user.email}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Blocked on: {new Date(user.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleUnblockUser(user.id)}
+                        >
+                          <UserX className="w-4 h-4 mr-1" />
+                          Unblock
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button onClick={() => setShowBlockedUsers(false)}>Close</Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>

@@ -58,6 +58,10 @@ export default function Settings() {
     }
   };
 
+  const { theme, setTheme, resolvedTheme } = useTheme();
+
+  const isDark = (theme === "system" ? resolvedTheme === "dark" : theme === "dark") || false;
+
   return (
     <WellnessLayout>
       <div className="container mx-auto px-4 py-8">

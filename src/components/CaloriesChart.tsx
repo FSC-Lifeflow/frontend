@@ -1,21 +1,47 @@
+import { useEffect, useMemo } from "react";
 import { WellnessCard } from "./WellnessCard";
 import { TrendingUp } from "lucide-react";
+import { useFitbit } from "@/hooks/useFitbit";
 
-// Mock data for weekly calories
-const weeklyCaloriesData = [
-  { day: "Mon", calories: 420 },
-  { day: "Tue", calories: 380 },
-  { day: "Wed", calories: 450 },
-  { day: "Thu", calories: 320 },
-  { day: "Fri", calories: 290 },
-  { day: "Sat", calories: 510 },
-  { day: "Sun", calories: 340 },
-];
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export function CaloriesChart() {
-  const maxCalories = Math.max(...weeklyCaloriesData.map(d => d.calories));
-  const totalCalories = weeklyCaloriesData.reduce((sum, d) => sum + d.calories, 0);
-  const avgCalories = Math.round(totalCalories / weeklyCaloriesData.length);
+  const { isAuthenticated, data, isLoading, error, fetchCaloriesSeries } = useFitbit();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchCaloriesSeries("7d");
+    }
+  }, [isAuthenticated, fetchCaloriesSeries]);
+
+  const weeklyCaloriesData = useMemo(() => {
+    const series = data.caloriesSeries;
+    if (!series || series.length === 0) return null;
+
+    // Fitbit returns an array of { dateTime: 'YYYY-MM-DD', value: '1234' } oldest->newest
+    return series.map((d) => {
+      const date = new Date(d.date);
+      const day = WEEKDAYS[date.getDay()];
+      return { day, calories: d.calories };
+    });
+  }, [data.caloriesSeries]);
+
+  // Build a 7-day fallback ending today if no data yet
+  const fallbackData = useMemo(() => {
+    const days: { day: string; calories: number }[] = [];
+    const today = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      days.push({ day: WEEKDAYS[d.getDay()], calories: 0 });
+    }
+    return days;
+  }, []);
+
+  const chartData = weeklyCaloriesData ?? fallbackData;
+  const maxCalories = chartData.length ? Math.max(...chartData.map(d => d.calories)) : 0;
+  const totalCalories = chartData.reduce((sum, d) => sum + d.calories, 0);
+  const avgCalories = chartData.length > 0 ? Math.round(totalCalories / chartData.length) : 0;
 
   return (
     <WellnessCard className="animate-slide-up">
@@ -30,25 +56,31 @@ export function CaloriesChart() {
         </div>
       </div>
 
+      {error && (
+        <div className="mb-2 text-xs text-destructive">{error}</div>
+      )}
+
       <div className="flex items-end justify-between gap-2 h-40">
-        {weeklyCaloriesData.map((day, index) => {
-          const height = (day.calories / maxCalories) * 100;
-          const isToday = index === 3; // Thursday is today in our mock data
-          
+        {chartData.map((dayData, index) => {
+          const height = maxCalories > 0 ? (dayData.calories / maxCalories) * 100 : 0;
+          // Last bar is today in our generated fallback and Fitbit series
+          const isToday = index === chartData.length - 1;
+
+          // Use muted background when zero to still show an empty bar track
+          const barClass = dayData.calories > 0
+            ? (isToday ? 'bg-gradient-motivation shadow-wellness' : 'bg-gradient-primary hover:bg-gradient-motivation')
+            : 'bg-muted';
+
           return (
-            <div key={day.day} className="flex flex-col items-center flex-1">
+            <div key={`${dayData.day}-${index}`} className="flex flex-col items-center flex-1">
               <div className="w-full flex flex-col justify-end h-32 mb-2">
                 <div
-                  className={`w-full rounded-t-lg transition-all duration-500 ${
-                    isToday 
-                      ? 'bg-gradient-motivation shadow-wellness' 
-                      : 'bg-gradient-primary hover:bg-gradient-motivation'
-                  }`}
+                  className={`w-full rounded-t-lg transition-all duration-500 ${barClass}`}
                   style={{ height: `${height}%` }}
                 />
               </div>
-              <span className="text-xs font-medium text-muted-foreground">{day.day}</span>
-              <span className="text-xs text-primary font-bold">{day.calories}</span>
+              <span className="text-xs font-medium text-muted-foreground">{dayData.day}</span>
+              <span className="text-xs text-primary font-bold">{dayData.calories}</span>
             </div>
           );
         })}
