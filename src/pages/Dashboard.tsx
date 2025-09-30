@@ -3,6 +3,7 @@ import { WellnessCard } from "../components/WellnessCard";
 import { CaloriesChart } from "../components/CaloriesChart";
 import { GoogleCalendar } from "../components/GoogleCalendar";
 import { FitbitData } from "../components/FitbitData";
+import { ManualWorkoutDialog } from "../components/ManualWorkoutDialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -157,10 +158,14 @@ export default function Dashboard() {
             <WellnessCard className="animate-fade-in">
               <h3 className="font-semibold mb-4">Quick Actions</h3>
               <div className="space-y-2">
-                <Button variant="zen" className="w-full justify-start" size="sm">
-                  <Target className="w-4 h-4 mr-2" />
-                  Log Manual Activity
-                </Button>
+                <ManualWorkoutDialog
+                  trigger={
+                    <Button variant="zen" className="w-full justify-start" size="sm">
+                      <Target className="w-4 h-4 mr-2" />
+                      Log Manual Activity
+                    </Button>
+                  }
+                />
                 <Button variant="zen" className="w-full justify-start" size="sm">
                   <Heart className="w-4 h-4 mr-2" />
                   Update Health Data
