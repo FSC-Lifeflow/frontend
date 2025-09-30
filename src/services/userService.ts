@@ -10,6 +10,7 @@ export type SearchUser = {
   last_name: string;
   email: string;
   created_at: string;
+  mutual_friends_count?: number; // Optional field for friend suggestions
 };
 
 /**

@@ -48,6 +48,14 @@ const mockPosts = [
     likes: 18,
     comments: 5
   },
+  {
+    id: 3,
+    user: { name: "John Doe", username: "@johndoe", avatar: "" },
+    content: "Just finished a tough leg day at the gym! 💪",
+    timestamp: "1 hour ago",
+    likes: 5,
+    comments: 2
+  },
 ];
 
 export default function Social() {
@@ -58,6 +66,8 @@ export default function Social() {
   const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [suggestions, setSuggestions] = useState<Array<SearchUser & { mutual_friends_count: number }>>([]);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
 
   const handleOptIn = () => {
     localStorage.setItem('socialOptIn', 'true');
@@ -104,14 +114,40 @@ export default function Social() {
     }
   };
 
-  const handleAddFriend = async (user: SearchUser) => {
+  const handleAddFriend = async (userId: string) => {
     try {
+      console.log('🔵 Sending friend request to:', userId);
+      await friendService.sendFriendRequest(userId);
+      console.log('✅ Friend request sent successfully');
+      toast({
+        title: "Friend Request Sent",
+        description: "Your friend request has been sent successfully!",
+      });
+      // Remove the user from suggestions after sending request
+      setSuggestions(prev => prev.filter(user => user.id !== userId));
+    } catch (error: any) {
+      console.error('❌ Error sending friend request:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send friend request",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAddFriendFromSearch = async (user: SearchUser) => {
+    try {
+      console.log('🔵 Sending friend request from search to:', user.first_name, user.last_name);
       await friendService.sendFriendRequest(user.id);
+      console.log('✅ Friend request sent successfully from search');
       toast({
         title: "Friend Request Sent",
         description: `Friend request sent to ${user.first_name} ${user.last_name}`,
       });
+      // Remove the user from search results after sending request
+      setSearchResults(prev => prev.filter(u => u.id !== user.id));
     } catch (error: any) {
+      console.error('❌ Error sending friend request from search:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to send friend request",
@@ -136,6 +172,31 @@ export default function Social() {
       handleSearch();
     }
   };
+
+  // Load suggestions
+  useEffect(() => {
+    const loadSuggestions = async () => {
+      setIsLoadingSuggestions(true);
+      try {
+        const data = await friendService.getFriendSuggestions(4);
+        setSuggestions(data);
+      } catch (error) {
+        console.error('Failed to load suggestions: ', error);
+        toast({
+          title: "Error",
+          description: "Failed to load friend suggestions",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingSuggestions(false);
+      }
+    };
+
+    // Only load if user is authenticated and has opted into social features
+    if (!showPrivacyPrompt) {
+      loadSuggestions();
+    }
+  }, [showPrivacyPrompt, toast]);
 
   // Clear search results when search query is cleared
   useEffect(() => {
@@ -290,7 +351,7 @@ export default function Social() {
                           <Button 
                             variant="zen" 
                             size="sm"
-                            onClick={() => handleAddFriend(user)}
+                            onClick={() => handleAddFriendFromSearch(user)}
                           >
                             <UserPlus className="w-3 h-3" />
                           </Button>
@@ -343,21 +404,44 @@ export default function Social() {
 
             {/* Friend Suggestions */}
             <WellnessCard>
-              <h3 className="font-semibold mb-4">Suggested Connections</h3>
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 p-2 rounded-lg bg-muted/30">
-                  <Avatar className="w-10 h-10">
-                    <AvatarFallback className="bg-gradient-secondary text-white">JD</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">John Doe</p>
-                    <p className="text-xs text-muted-foreground">Similar goals</p>
-                  </div>
-                  <Button variant="zen" size="sm">
-                    <UserPlus className="w-3 h-3" />
-                  </Button>
+              <h3 className="font-semibold mb-4">People You May Know</h3>
+              {isLoadingSuggestions ? (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="w-5 h-5 animate-spin" />
                 </div>
-              </div>
+              ) : suggestions.length > 0 ? (
+                <div className="space-y-3 max-h-[180px] overflow-y-auto pr-2">
+                  {suggestions.map((user) => (
+                    <div key={user.id} className="flex flex-col items-center p-3 hover:bg-muted/50 rounded-lg transition-colors space-y-3">
+                      <Avatar className="w-12 h-12">
+                        <AvatarImage src={user.avatar} alt={user.username} />
+                        <AvatarFallback>
+                          {user.first_name?.[0]}{user.last_name?.[0] || user.username?.[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="text-center">
+                        <p className="font-medium text-sm">{user.first_name} {user.last_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {user.mutual_friends_count} mutual friend{user.mutual_friends_count !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => handleAddFriend(user.id)}
+                        className="w-full"
+                      >
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Add Friend
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-center py-4">
+                  No suggestions available right now.
+                </p>
+              )}
             </WellnessCard>
           </div>
         </div>

@@ -595,16 +595,18 @@ export const friendService = {
         .select('id')
         .eq('blocker_id', currentUser.id)
         .eq('blocked_id', userId)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+      if (error) {
         console.error('Error checking block status:', error);
+        // If there's an RLS or permission error, assume not blocked to allow friend requests
         return false;
       }
 
       return !!data;
     } catch (error) {
       console.error('Error checking if user is blocked:', error);
+      // On any error, assume not blocked to allow friend requests
       return false;
     }
   },
@@ -698,16 +700,18 @@ export const friendService = {
         .select('id')
         .eq('blocker_id', userId)
         .eq('blocked_id', currentUser.id)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+      if (error) {
         console.error('Error checking if blocked by user:', error);
+        // If there's an RLS or permission error, assume not blocked to allow friend requests
         return false;
       }
 
       return !!data;
     } catch (error) {
       console.error('Error checking if blocked by user:', error);
+      // On any error, assume not blocked to allow friend requests
       return false;
     }
   },
@@ -761,6 +765,36 @@ export const friendService = {
     } catch (error) {
       console.error('🧪 Blocking system test failed:', error);
       throw error;
+    }
+  },
+
+  /**
+   * Gets friend suggestions based on friends of friends
+   * @returns Array of suggested users with mutual friends count
+   */
+  async getFriendSuggestions(limit: number = 5): Promise<Array<SearchUser & { mutual_friends_count: number }>> {
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) return [];
+  
+      // Query to find friends of friends who aren't already friends with the current user
+      const { data, error } = await supabase.rpc('get_friend_suggestions', {
+        current_user_id: currentUser.id,
+        suggestion_limit: limit
+      });
+  
+      if (error) {
+        // If the function doesn't exist, return empty array for now
+        if (error.message?.includes('function get_friend_suggestions') || error.code === '42883') {
+          console.warn('Database function get_friend_suggestions not found. Please create it in Supabase.');
+          return [];
+        }
+        throw error;
+      }
+      return data || [];
+    } catch (error) {
+      console.error('Error getting friend suggestions:', error);
+      return [];
     }
   }
 };
