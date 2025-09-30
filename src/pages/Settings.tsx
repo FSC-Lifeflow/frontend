@@ -13,11 +13,9 @@ import { useTheme } from "next-themes";
 export default function Settings() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { theme, setTheme } = useTheme();
   const [socialPrivacy, setSocialPrivacy] = useState(true);
   const [loading, setLoading] = useState(true);
 
-  const isDark = theme === "dark";
 
   // Load user's current social privacy setting
   useEffect(() => {
