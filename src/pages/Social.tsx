@@ -7,21 +7,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Search, 
-  Trophy, 
-  Heart, 
-  MessageCircle, 
-  Share2, 
-  UserPlus,
-  Crown,
-  Medal,
-  Award,
-  Users,
-  Loader2
+  Search, Trophy, UserPlus, Crown, Medal, Award, Users,
+  Loader2, Share2, Edit, Trash2, FileText
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { userService, type SearchUser } from "@/services/userService";
 import { friendService } from "@/services/friendService";
+import { postService, type UserPost } from "@/services/postService";
+import { supabase } from "@/lib/supabase";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 // Mock data
 const mockFriends = [
@@ -29,33 +23,6 @@ const mockFriends = [
   { id: 2, name: "Maria Garcia", username: "@maria_wellness", avatar: "", streak: 8, weeklyPoints: 920 },
   { id: 3, name: "Jake Wilson", username: "@jake_strong", avatar: "", streak: 15, weeklyPoints: 780 },
   { id: 4, name: "Emma Davis", username: "@emma_yoga", avatar: "", streak: 6, weeklyPoints: 650 },
-];
-
-const mockPosts = [
-  {
-    id: 1,
-    user: { name: "Alex Thompson", username: "@alexfit", avatar: "" },
-    content: "Just completed a 5K run in 22 minutes! New personal record! 🏃‍♂️",
-    timestamp: "2 hours ago",
-    likes: 12,
-    comments: 3
-  },
-  {
-    id: 2,
-    user: { name: "Maria Garcia", username: "@maria_wellness", avatar: "" },
-    content: "Week 3 of my yoga journey complete! Feeling stronger and more flexible every day 🧘‍♀️",
-    timestamp: "4 hours ago",
-    likes: 18,
-    comments: 5
-  },
-  {
-    id: 3,
-    user: { name: "John Doe", username: "@johndoe", avatar: "" },
-    content: "Just finished a tough leg day at the gym! 💪",
-    timestamp: "1 hour ago",
-    likes: 5,
-    comments: 2
-  },
 ];
 
 export default function Social() {
@@ -68,6 +35,16 @@ export default function Social() {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [suggestions, setSuggestions] = useState<Array<SearchUser & { mutual_friends_count: number }>>([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const [posts, setPosts] = useState<UserPost[]>([]);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(false);
+  const [isCreatingPost, setIsCreatingPost] = useState(false);
+  const [myPosts, setMyPosts] = useState<UserPost[]>([]);
+  const [showMyPosts, setShowMyPosts] = useState(false);
+  const [isLoadingMyPosts, setIsLoadingMyPosts] = useState(false);
+  const [editingPost, setEditingPost] = useState<UserPost | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
 
   const handleOptIn = () => {
     localStorage.setItem('socialOptIn', 'true');
@@ -156,13 +133,112 @@ export default function Social() {
     }
   };
 
-  const handleCreatePost = () => {
-    if (newPost.trim()) {
+  const handleCreatePost = async () => {
+    if (!newPost.trim()) {
+      toast({
+        title: "Empty Post",
+        description: "Please write something before sharing!",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCreatingPost(true);
+    try {
+      const createdPost = await postService.createPost(newPost);
       toast({
         title: "Post Shared",
-        description: "Your update has been shared with your friends!",
+        description: "Your workout update has been shared with your friends!",
       });
       setNewPost("");
+      // Add the new post to the beginning of the posts array
+      setPosts(prev => [createdPost, ...prev]);
+    } catch (error: any) {
+      console.error('❌ Error creating post:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to share your post. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingPost(false);
+    }
+  };
+
+  const handleOpenMyPosts = async () => {
+    setShowMyPosts(true);
+    setIsLoadingMyPosts(true);
+    try {
+      const userPosts = await postService.getMyPosts(50);
+      setMyPosts(userPosts);
+    } catch (error: any) {
+      console.error('❌ Error loading my posts:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load your posts",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingMyPosts(false);
+    }
+  };
+
+  const handleEditPost = (post: UserPost) => {
+    setEditingPost(post);
+    setEditContent(post.content);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingPost || !editContent.trim()) return;
+
+    setIsSavingEdit(true);
+    try {
+      const updatedPost = await postService.updatePost(editingPost.id, editContent);
+      toast({
+        title: "Post Updated",
+        description: "Your post has been updated successfully!",
+      });
+      // Update in myPosts list
+      setMyPosts(prev => prev.map(p => p.id === updatedPost.id ? updatedPost : p));
+      // Update in friend activity feed if present
+      setPosts(prev => prev.map(p => p.id === updatedPost.id ? updatedPost : p));
+      setEditingPost(null);
+      setEditContent("");
+    } catch (error: any) {
+      console.error('❌ Error updating post:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update post",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    if (!confirm("Are you sure you want to delete this post?")) return;
+
+    setDeletingPostId(postId);
+    try {
+      await postService.deletePost(postId);
+      toast({
+        title: "Post Deleted",
+        description: "Your post has been deleted successfully!",
+      });
+      // Remove from myPosts list
+      setMyPosts(prev => prev.filter(p => p.id !== postId));
+      // Remove from friend activity feed if present
+      setPosts(prev => prev.filter(p => p.id !== postId));
+    } catch (error: any) {
+      console.error('❌ Error deleting post:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete post",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingPostId(null);
     }
   };
 
@@ -206,6 +282,30 @@ export default function Social() {
     }
   }, [searchQuery]);
 
+  useEffect(() => {
+    const loadPosts = async () => {
+      setIsLoadingPosts(true);
+      try {
+        const friendPosts = await postService.getFriendPosts(20);
+        setPosts(friendPosts);
+      } catch (error) {
+        console.error('Failed to load posts: ', error);
+        toast({
+          title: "Error",
+          description: "Failed to load friend activity",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingPosts(false);
+      }
+    };
+
+    // Only load if user is authenticated and has opted into social features
+    if (!showPrivacyPrompt) {
+      loadPosts();
+    }
+  }, [showPrivacyPrompt, toast]);
+
   if (showPrivacyPrompt) {
     return (
       <WellnessLayout>
@@ -245,7 +345,13 @@ export default function Social() {
           <div className="lg:col-span-2 space-y-6">
             {/* Create Post */}
             <WellnessCard>
-              <h2 className="text-lg font-semibold mb-4">Share Your Progress</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">Share Your Progress</h2>
+                <Button variant="outline" size="sm" onClick={handleOpenMyPosts}>
+                  <FileText className="w-4 h-4 mr-2" />
+                  My Posts
+                </Button>
+              </div>
               <Textarea
                 placeholder="Share an update about your wellness journey..."
                 value={newPost}
@@ -253,9 +359,13 @@ export default function Social() {
                 className="mb-4"
               />
               <div className="flex justify-end">
-                <Button variant="motivation" onClick={handleCreatePost}>
-                  <Share2 className="w-4 h-4 mr-2" />
-                  Share Update
+                <Button variant="motivation" onClick={handleCreatePost} disabled={isCreatingPost}>
+                  {isCreatingPost ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <Share2 className="w-4 h-4 mr-2" />
+                  )}
+                  {isCreatingPost ? "Sharing..." : "Share Update"}
                 </Button>
               </div>
             </WellnessCard>
@@ -263,38 +373,68 @@ export default function Social() {
             {/* Activity Feed */}
             <WellnessCard>
               <h2 className="text-lg font-semibold mb-4">Friend Activity</h2>
-              <div className="space-y-4">
-                {mockPosts.map((post) => (
-                  <div key={post.id} className="border-b border-muted last:border-0 pb-4 last:pb-0">
-                    <div className="flex items-start gap-3">
-                      <Avatar>
-                        <AvatarImage src={post.user.avatar} />
-                        <AvatarFallback className="bg-gradient-primary text-white">
-                          {post.user.name.split(' ').map(n => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium">{post.user.name}</span>
-                          <span className="text-sm text-muted-foreground">{post.user.username}</span>
-                          <span className="text-sm text-muted-foreground">•</span>
-                          <span className="text-sm text-muted-foreground">{post.timestamp}</span>
-                        </div>
-                        <p className="text-foreground mb-3">{post.content}</p>
-                        <div className="flex items-center gap-4">
-                          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-red-500">
-                            <Heart className="w-4 h-4 mr-1" />
-                            {post.likes}
-                          </Button>
-                          <Button variant="ghost" size="sm" className="text-muted-foreground">
-                            <MessageCircle className="w-4 h-4 mr-1" />
-                            {post.comments}
-                          </Button>
+              <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+                {isLoadingPosts ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                  </div>
+                ) : posts.length > 0 ? (
+                  posts.map((post) => (
+                    <div key={post.id} className="border-b border-muted last:border-0 pb-4 last:pb-0">
+                      <div className="flex items-start gap-3">
+                        <Avatar>
+                          <AvatarFallback className="bg-gradient-primary text-white">
+                            {post.user?.first_name?.[0]}{post.user?.last_name?.[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="font-medium">
+                              {post.user?.first_name} {post.user?.last_name}
+                            </span>
+                            {post.user?.username && (
+                              <span className="text-sm text-muted-foreground">
+                                @{post.user.username}
+                              </span>
+                            )}
+                            <span className="text-sm text-muted-foreground">•</span>
+                            <span className="text-sm text-muted-foreground">
+                              {new Date(post.created_at).toLocaleDateString('en-US', { 
+                                month: 'short', 
+                                day: 'numeric',
+                                hour: 'numeric',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                            {post.updated_at && post.updated_at !== post.created_at && (
+                              <>
+                                <span className="text-sm text-muted-foreground">•</span>
+                                <span className="text-xs text-muted-foreground italic">
+                                  edited {new Date(post.updated_at).toLocaleDateString('en-US', { 
+                                    month: 'short', 
+                                    day: 'numeric',
+                                    hour: 'numeric',
+                                    minute: '2-digit'
+                                  })}
+                                </span>
+                              </>
+                            )}
+                            {post.is_edited && (
+                              <Badge variant="secondary" className="text-xs">
+                                Edited
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-foreground mb-2">{post.content}</p>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-muted-foreground text-center py-8">
+                    No activity from friends yet. Add friends to see their workout updates!
+                  </p>
+                )}
               </div>
             </WellnessCard>
           </div>
@@ -391,7 +531,7 @@ export default function Social() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{friend.name}</p>
+                        <p className="text-sm font-medium">{friend.name}</p>
                         <p className="text-xs text-muted-foreground">{friend.weeklyPoints} pts</p>
                       </div>
                       <Badge variant="secondary" className="text-xs">
@@ -446,6 +586,114 @@ export default function Social() {
           </div>
         </div>
       </div>
+
+      {/* My Posts Dialog */}
+      <Dialog open={showMyPosts} onOpenChange={setShowMyPosts}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>My Posts</DialogTitle>
+            <DialogDescription>
+              View, edit, or delete your workout progress posts
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {isLoadingMyPosts ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            ) : myPosts.length > 0 ? (
+              myPosts.map((post) => (
+                <div key={post.id} className="border rounded-lg p-4 space-y-3">
+                  {editingPost?.id === post.id ? (
+                    <>
+                      <Textarea
+                        value={editContent}
+                        onChange={(e) => setEditContent(e.target.value)}
+                        className="min-h-[100px]"
+                      />
+                      <div className="flex gap-2 justify-end">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => {
+                            setEditingPost(null);
+                            setEditContent("");
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button 
+                          variant="motivation" 
+                          size="sm" 
+                          onClick={handleSaveEdit}
+                          disabled={isSavingEdit}
+                        >
+                          {isSavingEdit ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : null}
+                          Save
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <span className="text-sm text-muted-foreground">
+                              {new Date(post.created_at).toLocaleDateString('en-US', { 
+                                month: 'short', 
+                                day: 'numeric',
+                                year: 'numeric',
+                                hour: 'numeric',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                            {post.is_edited && (
+                              <Badge variant="secondary" className="text-xs">
+                                Edited
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-foreground">{post.content}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleEditPost(post)}
+                        >
+                          <Edit className="w-4 h-4 mr-2" />
+                          Edit
+                        </Button>
+                        <Button 
+                          variant="destructive" 
+                          size="sm" 
+                          onClick={() => handleDeletePost(post.id)}
+                          disabled={deletingPostId === post.id}
+                        >
+                          {deletingPostId === post.id ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4 mr-2" />
+                          )}
+                          Delete
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p className="text-muted-foreground text-center py-8">
+                You haven't created any posts yet. Share your first workout update!
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </WellnessLayout>
   );
 }
