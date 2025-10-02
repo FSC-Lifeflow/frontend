@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { authService } from "@/services/authService";
-import { Settings as SettingsIcon, Bell, Shield, Smartphone, Moon } from "lucide-react";
+import { Settings as SettingsIcon, Bell, Shield, Smartphone } from "lucide-react";
 import { useTheme } from "next-themes";
 
 export default function Settings() {

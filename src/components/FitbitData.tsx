@@ -1,4 +1,7 @@
 import { useFitbit, FitbitData as FitbitDataType } from "@/hooks/useFitbit";
+import { useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { useNotifications } from "@/contexts/NotificationContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -28,6 +31,22 @@ export function FitbitData({ className }: FitbitDataProps) {
     signOut, 
     refreshData 
   } = useFitbit();
+  const { toast } = useToast();
+  const { refreshUnreadCount } = useNotifications();
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { count: number } | undefined;
+      const count = detail?.count ?? 1;
+      toast({
+        title: "Fitbit workout synced",
+        description: `${count} new workout${count > 1 ? 's' : ''} added to your log`,
+      });
+      refreshUnreadCount();
+    };
+    window.addEventListener('fitbit:new_workouts', handler as EventListener);
+    return () => window.removeEventListener('fitbit:new_workouts', handler as EventListener);
+  }, [toast, refreshUnreadCount]);
 
   const formatSleepHours = (minutes: number) => {
     const hours = Math.floor(minutes / 60);

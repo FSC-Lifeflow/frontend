@@ -29,13 +29,21 @@ type WorkoutFormValues = z.infer<typeof workoutSchema>;
 export function ManualWorkoutDialog({
   trigger,
   onSaved,
+  open: openProp,
+  onOpenChange,
 }: {
   trigger?: React.ReactNode;
   onSaved?: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [open, setOpen] = React.useState(false);
+  const [internalOpen, setInternalOpen] = React.useState(false);
+  const open = openProp ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
+
+  
 
   const form = useForm<WorkoutFormValues>({
     resolver: zodResolver(workoutSchema),
@@ -87,7 +95,16 @@ export function ManualWorkoutDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      {trigger ? <DialogTrigger asChild>{trigger}</DialogTrigger> : null}
+      {trigger && (
+        <DialogTrigger asChild>
+          {React.isValidElement(trigger)
+            ? React.cloneElement(trigger as React.ReactElement<any>, {
+                'aria-haspopup': 'dialog',
+                'aria-expanded': open,
+              })
+            : trigger}
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Log Workout</DialogTitle>

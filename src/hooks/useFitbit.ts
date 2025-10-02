@@ -1,4 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { workoutService } from '@/services/workoutService';
+import { notificationService } from '@/services/notificationService';
 
 // Types for Fitbit data
 export interface FitbitActivityData {
@@ -51,6 +54,7 @@ const FITBIT_TOKEN_URL = 'http://localhost:3001/api/fitbit/token';
 const FITBIT_API_BASE = 'http://localhost:3001/api/fitbit';
 
 export function useFitbit() {
+  const { user } = useAuth();
   const [state, setState] = useState<FitbitState>({
     isAuthenticated: false,
     data: {},
@@ -266,6 +270,61 @@ export function useFitbit() {
         data: parsedData,
         isLoading: false 
       }));
+
+      // Sync logged activities to Supabase as workouts (if user is logged in)
+      try {
+        if (user?.id) {
+          const activities: any[] = activityData.activities || [];
+          let newCount = 0;
+          for (const act of activities) {
+            // Fitbit provides dateTime (activityDate) and startTime (HH:mm)
+            const date = act.startTime ? activityData.summary?.activityDate || new Date().toISOString().split('T')[0] : activityData.summary?.activityDate || new Date().toISOString().split('T')[0];
+            const start = act.startTime ? `${date}T${act.startTime}` : `${date}T00:00:00`;
+            const startedAtIso = new Date(start).toISOString();
+            const durationMin = act.duration ? Math.max(1, Math.round(Number(act.duration) / 60000)) : (act.activeDuration ? Math.max(1, Math.round(Number(act.activeDuration) / 60000)) : 0);
+
+            if (!act.logId || !durationMin) continue;
+
+            const created = await workoutService.addExternalIfNew({
+              user_id: user.id,
+              started_at: startedAtIso,
+              type: String(act.activityName || act.name || 'workout').toLowerCase(),
+              duration_minutes: durationMin,
+              satisfaction: null,
+              notes: null,
+              source: 'fitbit',
+              external_id: String(act.logId),
+            });
+
+            if (created.id !== 'duplicate') {
+              newCount += 1;
+              // Create an in-app notification
+              try {
+                await notificationService.createNotification({
+                  user_id: user.id,
+                  type: 'workout_logged',
+                  title: 'New Fitbit workout logged',
+                  message: `${act.activityName || 'Workout'} • ${durationMin} min`,
+                  data: { source: 'fitbit', external_id: act.logId, started_at: startedAtIso },
+                  read: false,
+                  updated_at: new Date().toISOString(),
+                  created_at: new Date().toISOString(),
+                } as any);
+              } catch (e) {
+                // Non-fatal
+                console.warn('Failed to create notification for workout', e);
+              }
+            }
+          }
+          if (newCount > 0) {
+            console.log(`[Fitbit] Synced ${newCount} new workout(s) to Supabase`);
+            // Notify UI listeners
+            window.dispatchEvent(new CustomEvent('fitbit:new_workouts', { detail: { count: newCount } }));
+          }
+        }
+      } catch (syncErr) {
+        console.warn('Failed to sync Fitbit workouts to Supabase', syncErr);
+      }
 
     } catch (error) {
       console.error('Fitbit data fetch error:', error);

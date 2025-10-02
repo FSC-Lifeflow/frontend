@@ -49,6 +49,7 @@ const AppContent = () => {
           <Route path="/register" element={!user ? <Register /> : <Navigate to="/dashboard" replace />} />
           <Route path="/signin" element={!user ? <SignIn /> : <Navigate to="/dashboard" replace />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/fitbit/callback" element={<FitbitCallback />} />
           
           {/* Protected routes */}
           <Route element={<ProtectedRoute redirectPath="/" />}>

@@ -20,6 +20,9 @@ export type WorkoutInsert = {
   duration_minutes: number;
   satisfaction?: number | null;
   notes?: string | null;
+  // Optional external source metadata
+  source?: string | null; // e.g., 'fitbit' | 'manual'
+  external_id?: string | null; // e.g., Fitbit logId
 };
 
 export type Workout = WorkoutInsert & {
@@ -55,6 +58,46 @@ function listLocal(userId: string, limit = 10): Workout[] {
 }
 
 export const workoutService = {
+  async existsExternal(userId: string, source: string, externalId: string): Promise<boolean> {
+    const fallback = useLocalFallback();
+    if (fallback) {
+      // Check local cache for duplicates
+      const list = listLocal(userId, 1000);
+      return list.some((w) => w.source === source && w.external_id === externalId);
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("workouts")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("source", source)
+        .eq("external_id", externalId)
+        .limit(1)
+        .maybeSingle();
+
+      if (error) return false;
+      return Boolean(data?.id);
+    } catch {
+      return false;
+    }
+  },
+
+  async addExternalIfNew(input: WorkoutInsert & { source: string; external_id: string }): Promise<Workout> {
+    // Avoid duplicates by checking existence first
+    const already = await this.existsExternal(input.user_id, input.source, input.external_id);
+    if (already) {
+      // Return a synthetic object for convenience
+      return {
+        id: "duplicate",
+        created_at: new Date().toISOString(),
+        ...input,
+      };
+    }
+
+    return this.addWorkout(input);
+  },
+
   async addWorkout(input: WorkoutInsert): Promise<Workout> {
     const fallback = useLocalFallback();
 
@@ -77,6 +120,8 @@ export const workoutService = {
         duration_minutes: input.duration_minutes,
         satisfaction: input.satisfaction ?? null,
         notes: input.notes ?? null,
+        source: input.source ?? null,
+        external_id: input.external_id ?? null,
       })
       .select("*")
       .single();

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../../supabaseClient';
+import { supabase } from '@/lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
 // Types for Google Calendar events
@@ -104,11 +104,14 @@ export function useGoogleCalendar() {
     }
 
     try {
+      // Use order/limit + maybeSingle to avoid 406 when multiple rows exist
       const { data, error } = await supabase
         .from('google_calendar_tokens')
         .select('*')
         .eq('user_id', user.id)
-        .single();
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
       if (error) {
         if (error.code === 'PGRST116') {
