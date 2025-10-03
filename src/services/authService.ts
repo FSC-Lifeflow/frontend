@@ -7,13 +7,21 @@ import { supabase } from '../lib/supabase';
  */
 type User = {
   id: string;
-  username: string;
   first_name: string;
   last_name: string;
   email: string;
   created_at: string;
-  social_privacy?: boolean;
   avatar_url?: string;
+  username: string;
+  social_privacy?: boolean;
+  // Fitness goal specifications stored on users table
+  fitness_level?: string | null;
+  primary_goals?: string | null;
+  exercise_preferences?: string | null;
+  weekly_frequency?: string | null;
+  session_duration?: string | null;
+  equipment_access?: string | null;
+  physical_limitations?: string | null;
 };
 
 /**

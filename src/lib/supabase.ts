@@ -24,6 +24,16 @@ export type User = {
   created_at: string
   updated_at: string
   avatar_url?: string
+  username: string
+  social_privacy?: boolean
+  // Fitness goal specifications stored on users table
+  fitness_level?: string | null
+  primary_goals?: string | null
+  exercise_preferences?: string | null
+  weekly_frequency?: string | null
+  session_duration?: string | null
+  equipment_access?: string | null
+  physical_limitations?: string | null
 }
 
 export type Database = {
