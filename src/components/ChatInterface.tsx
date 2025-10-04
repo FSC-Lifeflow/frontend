@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChatHistory } from "@/hooks/useChatHistory";
 import { useGoogleCalendar, CalendarEvent } from "@/hooks/useGoogleCalendar";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Message {
   id: string;
@@ -328,7 +330,11 @@ export function ChatInterface({ onClose }: ChatInterfaceProps) {
                     ? "bg-gradient-motivation text-white ml-auto"
                     : "bg-muted text-foreground"
                 )}>
-                  <p className="text-sm">{message.content}</p>
+                  <div className="text-sm prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-ul:my-2 prose-li:my-1 prose-strong:font-semibold">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {message.content}
+                    </ReactMarkdown>
+                  </div>
                   <p className={cn(
                     "text-xs mt-2 opacity-70",
                     message.isUser ? "text-white/70" : "text-muted-foreground"
