@@ -47,6 +47,12 @@ export function ChatInterface({ onClose }: ChatInterfaceProps) {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const eventsRef = useRef<CalendarEvent[]>([]);
+
+  // Keep eventsRef updated with latest events
+  useEffect(() => {
+    eventsRef.current = events;
+  }, [events]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -147,15 +153,20 @@ export function ChatInterface({ onClose }: ChatInterfaceProps) {
         });
       }
 
-      // ChatInterface.tsx - Add logging before sendChatRequest
+      // Use eventsRef.current to get the latest events data
       const selectedEvent = selectedEventId 
-        ? events.find(event => event.id === selectedEventId) || null
+        ? eventsRef.current.find(event => event.id === selectedEventId) || null
         : null;
 
       console.log('Sending message with event:', {
         selectedEventId,
-        selectedEvent: selectedEvent ? selectedEvent.summary : 'none',
-        eventsCount: events.length
+        selectedEvent: selectedEvent ? {
+          summary: selectedEvent.summary,
+          start: selectedEvent.start,
+          end: selectedEvent.end
+        } : 'none',
+        eventsCount: eventsRef.current.length,
+        latestEventsTimestamp: new Date().toISOString()
       });
   
       // Step 3: Get AI response from webhook
