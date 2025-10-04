@@ -147,9 +147,16 @@ export function ChatInterface({ onClose }: ChatInterfaceProps) {
         });
       }
 
+      // ChatInterface.tsx - Add logging before sendChatRequest
       const selectedEvent = selectedEventId 
         ? events.find(event => event.id === selectedEventId) || null
         : null;
+
+      console.log('Sending message with event:', {
+        selectedEventId,
+        selectedEvent: selectedEvent ? selectedEvent.summary : 'none',
+        eventsCount: events.length
+      });
   
       // Step 3: Get AI response from webhook
       const webhookResponse = await sendChatRequest(userMessageContent, selectedEvent);
