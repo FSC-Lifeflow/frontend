@@ -7,15 +7,45 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { authService } from "@/services/authService";
-import { Settings as SettingsIcon, Bell, Shield, Smartphone, Moon } from "lucide-react";
+import { useGoogleCalendarOAuth } from "@/hooks/useGoogleCalendarOAuth";
+import { Settings as SettingsIcon, Bell, Shield, Smartphone, Calendar, CheckCircle2 } from "lucide-react";
 import { useTheme } from "next-themes";
 
 export default function Settings() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { initiateOAuth, isLoading: oauthLoading } = useGoogleCalendarOAuth();
   const [socialPrivacy, setSocialPrivacy] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
+  const [checkingConnection, setCheckingConnection] = useState(true);
 
+  // Check if Google Calendar is connected via backend API
+  useEffect(() => {
+    const checkGoogleConnection = async () => {
+      if (!user?.id) {
+        setCheckingConnection(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`http://localhost:3001/api/google/status?userId=${user.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setGoogleCalendarConnected(data.connected && data.hasRefreshToken);
+        } else {
+          setGoogleCalendarConnected(false);
+        }
+      } catch (error) {
+        console.error('Error checking Google Calendar connection:', error);
+        setGoogleCalendarConnected(false);
+      } finally {
+        setCheckingConnection(false);
+      }
+    };
+
+    checkGoogleConnection();
+  }, [user?.id]);
 
   // Load user's current social privacy setting
   useEffect(() => {
@@ -59,6 +89,47 @@ export default function Settings() {
   const { theme, setTheme, resolvedTheme } = useTheme();
 
   const isDark = (theme === "system" ? resolvedTheme === "dark" : theme === "dark") || false;
+
+  const handleGoogleCalendarConnect = async () => {
+    try {
+      await initiateOAuth();
+    } catch (error) {
+      toast({
+        title: "Connection Failed",
+        description: "Failed to connect Google Calendar. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleGoogleCalendarDisconnect = async () => {
+    if (!user?.id) return;
+
+    try {
+      const response = await fetch('http://localhost:3001/api/google/disconnect', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      if (!response.ok) throw new Error('Failed to disconnect');
+
+      setGoogleCalendarConnected(false);
+      toast({
+        title: "Disconnected",
+        description: "Google Calendar has been disconnected.",
+      });
+    } catch (error) {
+      console.error('Error disconnecting Google Calendar:', error);
+      toast({
+        title: "Error",
+        description: "Failed to disconnect Google Calendar. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <WellnessLayout>
@@ -153,6 +224,57 @@ export default function Settings() {
                     <p className="text-sm text-muted-foreground">Automatically sync with Google Calendar</p>
                   </div>
                   <Switch defaultChecked />
+                </div>
+              </div>
+            </WellnessCard>
+
+            {/* Integrations */}
+            <WellnessCard>
+              <div className="flex items-center gap-2 mb-6">
+                <Calendar className="w-5 h-5 text-primary" />
+                <h2 className="text-xl font-semibold">Integrations</h2>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border-2 border-primary/20">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm">
+                      <Calendar className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">Google Calendar</p>
+                        {googleCalendarConnected && (
+                          <CheckCircle2 className="w-4 h-4 text-green-500" />
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {checkingConnection 
+                          ? "Checking connection..." 
+                          : googleCalendarConnected 
+                            ? "Connected with refresh token" 
+                            : "Not connected"}
+                      </p>
+                    </div>
+                  </div>
+                  {googleCalendarConnected ? (
+                    <Button 
+                      variant="zen" 
+                      size="sm"
+                      onClick={handleGoogleCalendarDisconnect}
+                      disabled={checkingConnection}
+                    >
+                      Disconnect
+                    </Button>
+                  ) : (
+                    <Button 
+                      variant="wellness" 
+                      size="sm"
+                      onClick={handleGoogleCalendarConnect}
+                      disabled={oauthLoading || checkingConnection}
+                    >
+                      {oauthLoading ? "Connecting..." : "Connect"}
+                    </Button>
+                  )}
                 </div>
               </div>
             </WellnessCard>

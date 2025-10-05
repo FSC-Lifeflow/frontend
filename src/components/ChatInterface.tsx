@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
@@ -49,12 +49,6 @@ export function ChatInterface({ onClose }: ChatInterfaceProps) {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const eventsRef = useRef<CalendarEvent[]>([]);
-
-  // Keep eventsRef updated with latest events
-  useEffect(() => {
-    eventsRef.current = events;
-  }, [events]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -64,9 +58,12 @@ export function ChatInterface({ onClose }: ChatInterfaceProps) {
     scrollToBottom();
   }, [messages]);
 
-  const sendChatRequest = async (userMessage: string, selectedEvent: CalendarEvent | null = null) => {
+  const sendChatRequest = async (userMessage: string, conversationId: string | null = null, selectedEvent: CalendarEvent | null = null) => {
     try {
+      // Build payload - backend will enhance with auth tokens and forward to n8n
       const payload: any = {
+        userId: user?.id,
+        conversationId: conversationId,
         timestamp: new Date().toISOString(),
         action: 'chat_message',
         message: userMessage,
@@ -84,9 +81,17 @@ export function ChatInterface({ onClose }: ChatInterfaceProps) {
           location: selectedEvent.location,
           attendees: selectedEvent.attendees
         };
+        console.log('✅ Event data added to payload:', payload.selected_event.summary);
+      } else {
+        console.log('ℹ️ No event selected for this message');
       }
   
-      const response = await fetch(`/api/webhook/${import.meta.env.VITE_WEBHOOK_MASTER}`, {
+      // Backend will:
+      // 1. Fetch auth tokens from Supabase
+      // 2. Add auth object to payload
+      // 3. Forward to n8n webhook (from N8N_WEBHOOK_URL env var)
+  
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -95,15 +100,15 @@ export function ChatInterface({ onClose }: ChatInterfaceProps) {
       });
   
       if (response.ok) {
-        console.log('Chat webhook called successfully', selectedEvent ? 'with selected event' : '');
+        console.log('Chat request sent successfully with userId:', user?.id, selectedEvent ? '(with selected event)' : '');
         const responseJSON = await response.json();
         return responseJSON.output;
       } else {
-        console.error('Chat webhook call failed:', response.statusText);
+        console.error('Chat request failed:', response.statusText);
         return null;
       }
     } catch (error) {
-      console.error('Error calling chat webhook:', error);
+      console.error('Error sending chat request:', error);
       return null;
     }
   };
@@ -155,24 +160,33 @@ export function ChatInterface({ onClose }: ChatInterfaceProps) {
         });
       }
 
-      // Use eventsRef.current to get the latest events data
+      // Look up the selected event from current events state
       const selectedEvent = selectedEventId 
-        ? eventsRef.current.find(event => event.id === selectedEventId) || null
+        ? events.find(event => event.id === selectedEventId) || null
         : null;
 
-      console.log('Sending message with event:', {
+      // Log warning if event was selected but not found
+      if (selectedEventId && !selectedEvent) {
+        console.warn('⚠️ Selected event not found in events array:', {
+          selectedEventId,
+          availableEventIds: events.map(e => e.id),
+          eventsCount: events.length
+        });
+      }
+
+      console.log('📤 Sending message with event:', {
         selectedEventId,
         selectedEvent: selectedEvent ? {
+          id: selectedEvent.id,
           summary: selectedEvent.summary,
           start: selectedEvent.start,
           end: selectedEvent.end
         } : 'none',
-        eventsCount: eventsRef.current.length,
-        latestEventsTimestamp: new Date().toISOString()
+        eventsCount: events.length
       });
   
       // Step 3: Get AI response from webhook
-      const webhookResponse = await sendChatRequest(userMessageContent, selectedEvent);
+      const webhookResponse = await sendChatRequest(userMessageContent, conversationId, selectedEvent);
       
       let aiResponseContent = "I'm sorry, I'm having trouble processing your request right now. Please try again.";
       
@@ -261,7 +275,17 @@ export function ChatInterface({ onClose }: ChatInterfaceProps) {
 
   const handleEventSelect = (eventId: string | null) => {
     setSelectedEventId(eventId);
+    console.log('🎯 Event selected:', eventId);
   };
+
+  // Clear selected event if it no longer exists in events array
+  // Only check when selectedEventId changes, not when events array updates
+  useEffect(() => {
+    if (selectedEventId && events.length > 0 && !events.find(e => e.id === selectedEventId)) {
+      console.warn('⚠️ Selected event no longer in events list, clearing selection');
+      setSelectedEventId(null);
+    }
+  }, [selectedEventId]);
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -308,7 +332,7 @@ export function ChatInterface({ onClose }: ChatInterfaceProps) {
                 key={message.id}
                 className={cn(
                   "flex gap-3",
-                  message.isUser ? "flex-row-reverse" : "flex-row"
+                  message.isUser ? "flex-row-reverse pr-2" : "flex-row"
                 )}
               >
                 <div className={cn(

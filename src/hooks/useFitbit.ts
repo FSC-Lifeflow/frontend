@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 
 // Types for Fitbit data
 export interface FitbitActivityData {
@@ -51,6 +52,7 @@ const FITBIT_TOKEN_URL = 'http://localhost:3001/api/fitbit/token';
 const FITBIT_API_BASE = 'http://localhost:3001/api/fitbit';
 
 export function useFitbit() {
+  const { user } = useAuth();
   const [state, setState] = useState<FitbitState>({
     isAuthenticated: false,
     data: {},
@@ -152,6 +154,11 @@ export function useFitbit() {
       return;
     }
 
+    if (!user?.id) {
+      setState(prev => ({ ...prev, error: 'User not authenticated', isLoading: false }));
+      return;
+    }
+
     try {
       const redirectUri = import.meta.env.VITE_FITBIT_REDIRECT_URI;
 
@@ -163,6 +170,7 @@ export function useFitbit() {
         body: JSON.stringify({
           code: code,
           redirect_uri: redirectUri,
+          userId: user.id, // Include userId for Supabase storage
         }),
       });
 
@@ -172,7 +180,7 @@ export function useFitbit() {
 
       const tokenData = await tokenResponse.json();
       
-      // Store tokens
+      // Store tokens in localStorage (for backward compatibility)
       const expiryTime = new Date().getTime() + (tokenData.expires_in * 1000);
       localStorage.setItem('fitbit_access_token', tokenData.access_token);
       localStorage.setItem('fitbit_refresh_token', tokenData.refresh_token);
@@ -190,7 +198,7 @@ export function useFitbit() {
         isLoading: false 
       }));
     }
-  }, []);
+  }, [user?.id]);
 
   // Fetch Fitbit data
   const fetchFitbitData = useCallback(async (accessToken?: string) => {

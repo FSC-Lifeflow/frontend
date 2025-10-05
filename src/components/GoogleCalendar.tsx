@@ -1,4 +1,5 @@
 import { useGoogleCalendar, CalendarEvent } from "@/hooks/useGoogleCalendar";
+import { useGoogleCalendarOAuth } from "@/hooks/useGoogleCalendarOAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -17,15 +18,19 @@ interface GoogleCalendarProps {
 }
 
 export function GoogleCalendar({ className }: GoogleCalendarProps) {
+  const { initiateOAuth, isLoading: oauthLoading } = useGoogleCalendarOAuth();
   const { 
     isAuthenticated, 
     events, 
     isLoading, 
     error, 
-    authenticate, 
     signOut, 
     refreshEvents 
   } = useGoogleCalendar();
+
+  const handleConnect = async () => {
+    await initiateOAuth();
+  };
 
   const formatEventTime = (event: CalendarEvent) => {
     if (event.start.dateTime) {
@@ -67,6 +72,7 @@ export function GoogleCalendar({ className }: GoogleCalendarProps) {
     return "bg-muted text-muted-foreground";
   };
 
+  // Show connect screen if not authenticated
   if (!isAuthenticated) {
     return (
       <div className={`bg-muted/30 rounded-lg p-6 text-center ${className}`}>
@@ -85,10 +91,10 @@ export function GoogleCalendar({ className }: GoogleCalendarProps) {
         )}
         <Button 
           variant="wellness" 
-          onClick={authenticate}
-          disabled={isLoading}
+          onClick={handleConnect}
+          disabled={oauthLoading}
         >
-          {isLoading ? "Connecting..." : "Connect Google Calendar"}
+          {oauthLoading ? "Connecting..." : "Connect Google Calendar"}
         </Button>
       </div>
     );

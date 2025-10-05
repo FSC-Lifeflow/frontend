@@ -149,6 +149,11 @@ export const authService = {
       // Redirects to Google's consent screen, then back to /auth/callback
       // Use VITE_APP_URL for production, fallback to window.location.origin for local dev
       const redirectUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+      console.log('🔍 VITE_APP_URL:', import.meta.env.VITE_APP_URL);
+      console.log('🔍 window.location.origin:', window.location.origin);
+      console.log('🔍 Final redirectUrl:', redirectUrl);
+      console.log('🔍 Full redirect path:', `${redirectUrl}/auth/callback`);
+      
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {

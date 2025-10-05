@@ -1,5 +1,5 @@
-import { useState } from "react";
 import { useGoogleCalendar, CalendarEvent } from "@/hooks/useGoogleCalendar";
+import { useGoogleCalendarOAuth } from "@/hooks/useGoogleCalendarOAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -9,9 +9,7 @@ import {
   MapPin,
   Users,
   AlertCircle,
-  Check,
-  Trash2,
-  Edit3
+  Check
 } from "lucide-react";
 import { format, parseISO, isToday, isTomorrow } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -23,15 +21,19 @@ interface EventsSidebarProps {
 }
 
 export function EventsSidebar({ onEventSelect, selectedEventId, className }: EventsSidebarProps) {
+  const { initiateOAuth, isLoading: oauthLoading } = useGoogleCalendarOAuth();
   const { 
     isAuthenticated, 
     events, 
     isLoading, 
     error, 
-    authenticate, 
     signOut, 
     refreshEvents 
   } = useGoogleCalendar();
+
+  const handleConnect = async () => {
+    await initiateOAuth();
+  };
   
   const handleEventClick = (eventId: string) => {
     const newSelectedId = eventId === selectedEventId ? null : eventId;
@@ -78,6 +80,7 @@ export function EventsSidebar({ onEventSelect, selectedEventId, className }: Eve
     return "bg-muted text-muted-foreground";
   };
 
+  // Show connect screen if not authenticated
   if (!isAuthenticated) {
     return (
       <div className={cn("bg-muted/30 rounded-lg p-4 text-center", className)}>
@@ -97,11 +100,11 @@ export function EventsSidebar({ onEventSelect, selectedEventId, className }: Eve
         <Button 
           variant="wellness" 
           size="sm"
-          onClick={authenticate}
-          disabled={isLoading}
+          onClick={handleConnect}
+          disabled={oauthLoading}
           className="text-xs"
         >
-          {isLoading ? "Connecting..." : "Connect Calendar"}
+          {oauthLoading ? "Connecting..." : "Connect Calendar"}
         </Button>
       </div>
     );

@@ -66,8 +66,8 @@ export function ChatHistorySidebar({
   };
   
   return (
-    <div className={cn("bg-card rounded-lg border border-border", className)}>
-      <div className="p-4 border-b border-border">
+    <div className={cn("bg-card rounded-lg border border-border flex flex-col h-full", className)}>
+      <div className="p-4 border-b border-border flex-shrink-0">
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold text-sm">Chat History</h3>
           <Button 
@@ -92,7 +92,7 @@ export function ChatHistorySidebar({
         </div>
       </div>
       
-      <div className="max-h-96 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto min-h-0">
         {isLoading ? (
           <div className="text-center py-6">
             <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-muted-foreground" />
