@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { API_BASE_URL } from '../lib/config';
 
 /**
  * Hook for Google Calendar OAuth flow
@@ -21,7 +22,7 @@ export function useGoogleCalendarOAuth() {
 
     try {
       // Get OAuth URL from backend
-      const response = await fetch(`http://localhost:3001/api/google/auth-url?userId=${user.id}`);
+      const response = await fetch(`${API_BASE_URL}/api/google/auth-url?userId=${user.id}`);
       
       if (!response.ok) {
         throw new Error('Failed to get authorization URL');

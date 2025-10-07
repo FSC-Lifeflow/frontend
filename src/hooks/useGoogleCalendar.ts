@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { API_BASE_URL } from '../lib/config';
 
-const BACKEND_URL = 'http://localhost:3001';
+const BACKEND_URL = API_BASE_URL;
 
 // Types for Google Calendar events
 export interface CalendarEvent {
