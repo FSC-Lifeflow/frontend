@@ -14,7 +14,7 @@ import { FitbitCallback } from "./components/FitbitCallback";
 import { ThemeProvider } from "next-themes";
 
 import Landing from "./pages/Landing";
-import { Dashboard } from "./components/Dashboard";
+import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import Social from "./pages/Social";
 import Settings from "./pages/Settings";

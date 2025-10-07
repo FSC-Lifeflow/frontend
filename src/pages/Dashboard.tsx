@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
- 
 import { 
   Activity, 
   Calendar, 
@@ -19,9 +18,10 @@ import {
   ExternalLink
 } from "lucide-react";
 
-export default function Dashboard() {
-  const { user } = useAuth();
+function Dashboard() {
   
+  const { user } = useAuth();
+
   // Mock data for demonstration
   const todayStats = {
     steps: 7842,
@@ -49,26 +49,13 @@ export default function Dashboard() {
     { time: "Tomorrow 7:00 AM", title: "Morning Cardio", duration: "45 min", type: "cardio" },
   ];
 
-  // Get time-based greeting
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return "Good morning";
-    if (hour < 17) return "Good afternoon";
-    return "Good evening";
-  };
-
-  // Get user's first name or fallback
-  const getUserName = () => {
-    return user?.first_name || "there";
-  };
-
   return (
     <WellnessLayout>
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">
-            {getGreeting()}, {getUserName()}!
+            Good morning, {user?.first_name || 'there'}!
           </h1>
           <p className="text-muted-foreground flex items-center gap-2">
             <Sun className="w-4 h-4" />
@@ -90,6 +77,7 @@ export default function Dashboard() {
                   3 day streak
                 </Badge>
               </div>
+
               <FitbitData />
             </WellnessCard>
 
@@ -181,6 +169,9 @@ export default function Dashboard() {
         </div>
 
       </div>
+
     </WellnessLayout>
   );
 }
+
+export default Dashboard;

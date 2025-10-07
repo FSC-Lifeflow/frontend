@@ -20,10 +20,12 @@ export function useFitbitOAuth() {
     setError(null);
 
     try {
-      const clientId = String(import.meta.env.VITE_FITBIT_CLIENT_ID || '').trim();
-      const redirectUri = String(import.meta.env.VITE_FITBIT_REDIRECT_URI || '').trim();
+      const clientId = import.meta.env.VITE_FITBIT_CLIENT_ID?.trim() || null;
+      const redirectUri = import.meta.env.VITE_FITBIT_REDIRECT_URI?.trim() || null;
       
       if (!clientId || !redirectUri) {
+        console.log("Client ID: ", clientId);
+        console.log("Redirect URI: ", redirectUri);
         throw new Error('Fitbit credentials not configured');
       }
 

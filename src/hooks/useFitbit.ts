@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { FitbitDataService } from '../services/fitbitDataService';
 import { API_BASE_URL } from '../lib/config';
+import { useFitbitOAuth } from './useFitbitOAuth';
 
 // Types for Fitbit data
 export interface FitbitActivityData {
@@ -49,13 +50,13 @@ export interface FitbitState {
 }
 
 // Fitbit API configuration
-const FITBIT_AUTH_URL = 'https://www.fitbit.com/oauth2/authorize';
 const FITBIT_TOKEN_URL = `${API_BASE_URL}/api/fitbit/token`;
 const FITBIT_API_BASE = `${API_BASE_URL}/api/fitbit`;
 const FITBIT_STATUS_URL = `${API_BASE_URL}/api/fitbit/status`;
 
 export function useFitbit() {
   const { user } = useAuth();
+  const { initiateOAuth, isLoading: oauthLoading, error: oauthError } = useFitbitOAuth();
   const [state, setState] = useState<FitbitState>({
     isAuthenticated: false,
     data: {},
@@ -222,34 +223,10 @@ export function useFitbit() {
     }
   }, [user?.id]);
 
-  // Generate OAuth URL and redirect to Fitbit
+  // Generate OAuth URL and redirect to Fitbit (delegated to useFitbitOAuth)
   const authenticate = useCallback(() => {
-    const clientId = String(import.meta.env.VITE_FITBIT_CLIENT_ID || '').trim();
-    const redirectUri = String(import.meta.env.VITE_FITBIT_REDIRECT_URI || '').trim();
-    
-    if (!clientId || !redirectUri) {
-      setState(prev => ({ ...prev, error: 'Fitbit credentials not configured' }));
-      return;
-    }
-
-    const scope = 'activity heartrate sleep profile';
-    const responseType = 'code';
-    const state = Math.random().toString(36).substring(2, 15);
-    
-    // Store state for verification in sessionStorage (temporary, same-tab only)
-    sessionStorage.setItem('fitbit_oauth_state', state);
-    
-    const authUrl = `${FITBIT_AUTH_URL}?` + new URLSearchParams({
-      client_id: clientId,
-      response_type: responseType,
-      scope: scope,
-      redirect_uri: redirectUri,
-      state: state,
-    });
-
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
-    window.location.href = authUrl;
-  }, []);
+    initiateOAuth();
+  }, [initiateOAuth]);
 
   // Handle OAuth callback (call this from your callback route)
   const handleCallback = useCallback(async (code: string, state: string) => {
@@ -345,6 +322,8 @@ export function useFitbit() {
 
   return {
     ...state,
+    isLoading: state.isLoading || oauthLoading,
+    error: state.error || oauthError,
     authenticate,
     handleCallback,
     signOut,
