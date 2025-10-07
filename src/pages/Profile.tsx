@@ -20,7 +20,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { User, Upload, Save, Bell, X, Check, UserX, Loader2, Users, Ban, UserMinus } from "lucide-react";
+import { User, Save, Bell, X, Check, UserX, Loader2, Users, Ban, UserMinus } from "lucide-react";
 // Custom hooks and services
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,6 +28,18 @@ import { useNotifications } from "@/contexts/NotificationContext";
 import { authService } from "@/services/authService";
 import { notificationService, type Notification } from "@/services/notificationService";
 import { friendService, type SearchUser } from "@/services/friendService";
+import { AvatarUploader } from "@/components/AvatarUploader";
+
+// Extend service types locally to match actual payload shape used in this component
+type NotificationWithRead = Notification & {
+  is_read?: boolean;
+  type?: string;
+  data?: any;
+};
+
+type FriendWithAvatar = SearchUser & {
+  avatar_url?: string;
+};
 
 /**
  * Profile component - Displays and allows editing of user profile information
@@ -39,9 +51,9 @@ export default function Profile() {
   const { toast } = useToast();
   const [userId, setUserId] = useState<string | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<NotificationWithRead[]>([]);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
-  const [friends, setFriends] = useState<SearchUser[]>([]);
+  const [friends, setFriends] = useState<FriendWithAvatar[]>([]);
   const [loadingFriends, setLoadingFriends] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
   const [showBlockedUsers, setShowBlockedUsers] = useState(false);
@@ -533,18 +545,7 @@ export default function Profile() {
 
                   <div className="space-y-6">
                     {/* Profile Picture Section */}
-                    <div className="flex items-center gap-4">
-                      <Avatar className="w-20 h-20">
-                        <AvatarImage src={profileData.profilePicture} />
-                        <AvatarFallback className="bg-gradient-primary text-white text-lg">
-                          {profileData.name.split(' ').map(n => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                      <Button variant="zen" size="sm">
-                        <Upload className="w-4 h-4 mr-2" />
-                        Upload Photo
-                      </Button>
-                    </div>
+                    <AvatarUploader />
 
                     {/* Basic Info Form */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

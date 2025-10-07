@@ -15,6 +15,7 @@ type User = {
   email: string;
   created_at: string;
   social_privacy?: boolean;
+  avatar_url?: string;
 };
 
 /**
@@ -35,6 +36,7 @@ type AuthContextType = {
     password: string;
   }) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 };
 
 // Create the authentication context with an undefined default value
@@ -51,6 +53,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Refresh the current user's profile from the backend
+   */
+  const refreshUser = async () => {
+    try {
+      const currentUser = await authService.getCurrentUser();
+      setUser(currentUser as User | null);
+    } catch (err) {
+      console.error('Failed to refresh user:', err);
+    }
+  };
 
   /**
    * Check for existing authentication session on component mount
@@ -160,7 +174,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Provide the auth context value to child components
   return (
-    <AuthContext.Provider value={{ user, loading, error, login, loginWithGoogle, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, error, login, loginWithGoogle, register, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

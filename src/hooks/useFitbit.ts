@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { FitbitDataService } from '../services/fitbitDataService';
 
 // Types for Fitbit data
@@ -299,7 +299,10 @@ export function useFitbit() {
         isLoading: false 
       }));
     }
-  }, [user?.id]);
+  }, [user?.id, fetchFitbitData]);
+
+  // Integrate workout sync into primary backend-driven fetch
+  
 
   // Refresh token - now handled automatically by backend
   const refreshToken = useCallback(async () => {

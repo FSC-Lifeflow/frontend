@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
-const BACKEND_URL = 'http://localhost:3001';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
 
 // Types for Google Calendar events
 export interface CalendarEvent {
@@ -69,14 +70,35 @@ export function useGoogleCalendar() {
     }
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/google/status?userId=${user.id}`);
-      if (!response.ok) {
-        console.error('Failed to check connection status');
+      // Use order/limit + maybeSingle to avoid 406 when multiple rows exist
+      const { data, error } = await supabase
+        .from('google_calendar_tokens')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No token found, not an error
+          return null;
+        }
+        console.error('Error fetching Google Calendar token:', error);
         return null;
       }
-      
-      const data = await response.json();
-      return data;
+
+      if (!data) return null;
+
+      const expiresAt = (data as any).expires_at || (data as any).access_token_expires_at;
+      const isExpired = expiresAt ? new Date(expiresAt) < new Date() : false;
+      const hasRefreshToken = Boolean((data as any).refresh_token);
+
+      return {
+        connected: true,
+        hasRefreshToken,
+        isExpired,
+      } as ConnectionStatus;
     } catch (error) {
       console.error('Connection status check error:', error);
       return null;

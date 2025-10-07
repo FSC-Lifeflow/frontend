@@ -7,12 +7,21 @@ import { supabase } from '../lib/supabase';
  */
 type User = {
   id: string;
-  username: string;
   first_name: string;
   last_name: string;
   email: string;
   created_at: string;
+  avatar_url?: string;
+  username: string;
   social_privacy?: boolean;
+  // Fitness goal specifications stored on users table
+  fitness_level?: string | null;
+  primary_goals?: string | null;
+  exercise_preferences?: string | null;
+  weekly_frequency?: string | null;
+  session_duration?: string | null;
+  equipment_access?: string | null;
+  physical_limitations?: string | null;
 };
 
 /**
@@ -135,6 +144,61 @@ export const authService = {
       };
     } catch (error) {
       throw error;
+    }
+  },
+
+  /**
+   * Uploads a user avatar image to Supabase Storage and updates the user's avatar_url
+   * @param userId - ID of the user
+   * @param file - Image file selected by the user
+   * @returns The public URL of the uploaded avatar
+   */
+  async uploadAvatar(userId: string, file: File): Promise<string> {
+    try {
+      if (!userId) throw new Error('Missing userId');
+      if (!file) throw new Error('No file provided');
+
+      // Basic validation
+      const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+      if (!allowed.includes(file.type)) {
+        throw new Error('Unsupported file type. Please upload PNG, JPG, or WEBP.');
+      }
+      const maxSizeMB = 5;
+      if (file.size > maxSizeMB * 1024 * 1024) {
+        throw new Error(`File too large. Max size is ${maxSizeMB}MB.`);
+      }
+
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
+      const path = `${userId}/${Date.now()}.${ext}`;
+
+      // Upload to avatars bucket
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type });
+
+      if (uploadError) {
+        console.error('❌ Avatar upload failed:', uploadError);
+        throw new Error(uploadError.message);
+      }
+
+      // Get public URL
+      const { data: publicData } = supabase.storage.from('avatars').getPublicUrl(path);
+      const publicUrl = publicData.publicUrl;
+
+      // Update user record
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ avatar_url: publicUrl })
+        .eq('id', userId);
+
+      if (updateError) {
+        console.error('❌ Failed to update avatar_url on user:', updateError);
+        throw new Error('Failed to save avatar.');
+      }
+
+      return publicUrl;
+    } catch (error) {
+      throw error as Error;
     }
   },
 
