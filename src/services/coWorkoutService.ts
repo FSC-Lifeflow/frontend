@@ -8,9 +8,7 @@ import { notificationService } from './notificationService';
  * FUTURE IMPLEMENTATION:
  * This service will manage the co-workout functionality including:
  * - Sending workout invitations to friends
- * - Creating workout challenges
- * - Tracking workout sessions
- * - Managing challenge results and winners
+ * - Sceduling co-workouts or challenge workouts
  */
 
 /**
@@ -77,7 +75,6 @@ export type WorkoutSession = {
  * - challenge_metric: text (e.g., 'distance', 'reps', 'time', 'calories')
  * - challenger_result: numeric (optional)
  * - challenged_result: numeric (optional)
- * - winner_id: uuid (references users.id, optional)
  * - status: workout_challenge_status enum
  * - created_at: timestamp
  * - updated_at: timestamp
@@ -91,7 +88,6 @@ export type WorkoutChallenge = {
   challenge_metric: string;
   challenger_result?: number;
   challenged_result?: number;
-  winner_id?: string;
   status: WorkoutChallengeStatus;
   created_at: string;
   updated_at: string;

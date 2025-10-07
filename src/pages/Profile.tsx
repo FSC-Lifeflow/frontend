@@ -156,13 +156,13 @@ export default function Profile() {
         setNotifications(fetchedNotifications);
         
         // Mark unread notifications as read
-        const unreadNotifications = fetchedNotifications.filter(n => !n.is_read);
+        const unreadNotifications = fetchedNotifications.filter(n => !n.read);
         if (unreadNotifications.length > 0) {
           await Promise.all(
             unreadNotifications.map(n => notificationService.markAsRead(n.id))
           );
           // Update local state to reflect read status
-          setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+          setNotifications(prev => prev.map(n => ({ ...n, read: true })));
           await refreshUnreadCount(); // Refresh the global unread count
         }
       } catch (error) {
@@ -177,13 +177,13 @@ export default function Profile() {
       }
     } else {
       // Mark any unread notifications as read when opening the modal
-      const unreadNotifications = notifications.filter(n => !n.is_read);
+      const unreadNotifications = notifications.filter(n => !n.read);
       if (unreadNotifications.length > 0) {
         try {
           await Promise.all(
             unreadNotifications.map(n => notificationService.markAsRead(n.id))
           );
-          setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+          setNotifications(prev => prev.map(n => ({ ...n, read: true })));
           await refreshUnreadCount(); // Refresh the global unread count
         } catch (error) {
           console.error('Failed to mark notifications as read:', error);
@@ -321,6 +321,10 @@ export default function Profile() {
         return "🏆";
       case "workout_reminder":
         return "💪";
+      case "workout_invitation":
+        return "📅";
+      case "workout_challenge":
+        return "⚡";
       case "social":
         return "❤️";
       default:
@@ -749,7 +753,7 @@ export default function Profile() {
                       <div key={friend.id} className="flex items-center justify-between p-3 border rounded-lg">
                         <div className="flex items-center space-x-3">
                           <Avatar className="h-10 w-10">
-                            <AvatarImage src={friend.avatar_url} alt={friend.first_name} />
+                            <AvatarImage src="" alt={friend.first_name} />
                             <AvatarFallback>
                               {friend.first_name?.[0]}{friend.last_name?.[0]}
                             </AvatarFallback>
@@ -808,7 +812,7 @@ export default function Profile() {
                     <div
                       key={notification.id}
                       className={`p-3 rounded-lg border ${
-                        notification.is_read ? 'bg-muted/30' : 'bg-primary/5 border-primary/20'
+                        notification.read ? 'bg-muted/30' : 'bg-primary/5 border-primary/20'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -846,12 +850,73 @@ export default function Profile() {
                                 </Button>
                                 <Button
                                   size="sm"
-                                  variant="outline"
                                   onClick={() => handleBlockUser(notification.id, notification.data?.sender_id)}
                                   className="h-7 px-3 text-xs text-destructive hover:text-destructive flex-1 sm:flex-none"
                                 >
                                   <Ban className="w-3 h-3 mr-1" />
                                   Block
+                                </Button>
+                              </div>
+                            )}
+
+                            {/* Workout Invitation Actions */}
+                            {notification.type === 'workout_invitation' && (
+                              <div className="flex flex-wrap gap-2 mt-3">
+                                <Button
+                                  size="sm"
+                                  variant="zen"
+                                  onClick={async () => {
+                                    // TODO: Implement accept invitation - add to calendar
+                                    toast({
+                                      title: "Coming Soon",
+                                      description: "Calendar integration is not yet implemented.",
+                                    });
+                                    await handleRemoveNotification(notification.id);
+                                  }}
+                                  className="h-7 px-3 text-xs flex-1 sm:flex-none"
+                                >
+                                  <Check className="w-3 h-3 mr-1" />
+                                  Accept
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleRemoveNotification(notification.id)}
+                                  className="h-7 px-3 text-xs flex-1 sm:flex-none"
+                                >
+                                  <X className="w-3 h-3 mr-1" />
+                                  Decline
+                                </Button>
+                              </div>
+                            )}
+
+                            {/* Workout Challenge Actions */}
+                            {notification.type === 'workout_challenge' && (
+                              <div className="flex flex-wrap gap-2 mt-3">
+                                <Button
+                                  size="sm"
+                                  variant="motivation"
+                                  onClick={async () => {
+                                    // TODO: Implement accept challenge - add to calendar
+                                    toast({
+                                      title: "Coming Soon",
+                                      description: "Calendar integration is not yet implemented.",
+                                    });
+                                    await handleRemoveNotification(notification.id);
+                                  }}
+                                  className="h-7 px-3 text-xs flex-1 sm:flex-none"
+                                >
+                                  <Check className="w-3 h-3 mr-1" />
+                                  Accept
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleRemoveNotification(notification.id)}
+                                  className="h-7 px-3 text-xs flex-1 sm:flex-none"
+                                >
+                                  <X className="w-3 h-3 mr-1" />
+                                  Decline
                                 </Button>
                               </div>
                             )}

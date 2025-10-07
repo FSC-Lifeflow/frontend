@@ -131,18 +131,25 @@ export const notificationService = {
    */
   async createNotification(notification: Omit<Notification, 'id' | 'created_at' | 'updated_at'>): Promise<Notification> {
     try {
+      // Use the database function to bypass RLS policies
+      // This allows users to create notifications for other users (e.g., friend invitations)
       const { data, error } = await supabase
-        .from('notifications')
-        .insert(notification)
-        .select()
-        .single();
+        .rpc('create_notification_for_user', {
+          p_user_id: notification.user_id,
+          p_type: notification.type,
+          p_title: notification.title,
+          p_message: notification.message,
+          p_data: notification.data || null,
+          p_read: notification.read || false
+        });
 
       if (error) {
         console.error('❌ Failed to create notification:', error);
         throw new Error('Failed to create notification');
       }
 
-      return data;
+      // RPC returns an array, get the first item
+      return Array.isArray(data) ? data[0] : data;
     } catch (error) {
       console.error('❌ Create notification error:', error);
       throw error;

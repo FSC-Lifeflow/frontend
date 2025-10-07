@@ -780,7 +780,7 @@ export default function Social() {
                     
                     toast({
                       title: "Invitation Sent!",
-                      description: `Co-workout invitation sent to ${selectedFriend.first_name} ${selectedFriend.last_name}. Note: Notifications require database policy update.`,
+                      description: `Co-workout invitation sent to ${selectedFriend.first_name} ${selectedFriend.last_name}.`,
                     });
                     setShowInviteModal(false);
                     setSelectedFriend(null);
@@ -973,7 +973,7 @@ export default function Social() {
                     
                     toast({
                       title: "Challenge Sent!",
-                      description: `Workout challenge sent to ${selectedFriend.first_name} ${selectedFriend.last_name}. Note: Notifications require database policy update.`,
+                      description: `Workout challenge sent to ${selectedFriend.first_name} ${selectedFriend.last_name}.`,
                     });
                     setShowChallengeModal(false);
                     setSelectedFriend(null);
