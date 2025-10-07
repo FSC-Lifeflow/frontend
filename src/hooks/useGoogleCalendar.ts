@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE_URL } from '../lib/config';
+import { supabase } from '../../supabaseClient';
 
 const BACKEND_URL = API_BASE_URL;
 
