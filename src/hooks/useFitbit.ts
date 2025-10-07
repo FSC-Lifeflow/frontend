@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { FitbitDataService } from '../services/fitbitDataService';
+import { API_BASE_URL } from '../lib/config';
 
 // Types for Fitbit data
 export interface FitbitActivityData {
@@ -49,9 +50,9 @@ export interface FitbitState {
 
 // Fitbit API configuration
 const FITBIT_AUTH_URL = 'https://www.fitbit.com/oauth2/authorize';
-const FITBIT_TOKEN_URL = 'http://localhost:3001/api/fitbit/token';
-const FITBIT_API_BASE = 'http://localhost:3001/api/fitbit';
-const FITBIT_STATUS_URL = 'http://localhost:3001/api/fitbit/status';
+const FITBIT_TOKEN_URL = `${API_BASE_URL}/api/fitbit/token`;
+const FITBIT_API_BASE = `${API_BASE_URL}/api/fitbit`;
+const FITBIT_STATUS_URL = `${API_BASE_URL}/api/fitbit/status`;
 
 export function useFitbit() {
   const { user } = useAuth();
@@ -316,7 +317,7 @@ export function useFitbit() {
     if (!user?.id) return;
 
     try {
-      await fetch('http://localhost:3001/api/fitbit/disconnect', {
+      await fetch(`${API_BASE_URL}/api/fitbit/disconnect`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id }),
