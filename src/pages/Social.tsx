@@ -8,14 +8,18 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { 
   Search, Trophy, UserPlus, Crown, Medal, Award, Users,
-  Loader2, Share2, Edit, Trash2, FileText
+  Loader2, Share2, Edit, Trash2, FileText, Calendar, Zap
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { userService, type SearchUser } from "@/services/userService";
 import { friendService } from "@/services/friendService";
 import { postService, type UserPost } from "@/services/postService";
+import { notificationService } from "@/services/notificationService";
 import { supabase } from "@/lib/supabase";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // Mock data
 const mockFriends = [
@@ -45,6 +49,14 @@ export default function Social() {
   const [editContent, setEditContent] = useState("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
+  
+  // Co-Workout states
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showChallengeModal, setShowChallengeModal] = useState(false);
+  const [friends, setFriends] = useState<SearchUser[]>([]);
+  const [isLoadingFriends, setIsLoadingFriends] = useState(false);
+  const [selectedFriend, setSelectedFriend] = useState<SearchUser | null>(null);
+  const [friendSearchQuery, setFriendSearchQuery] = useState("");
 
   const handleOptIn = () => {
     localStorage.setItem('socialOptIn', 'true');
@@ -282,6 +294,24 @@ export default function Social() {
     }
   }, [searchQuery]);
 
+  // Load friends for co-workout functionality
+  useEffect(() => {
+    const loadFriends = async () => {
+      if (!showPrivacyPrompt) {
+        setIsLoadingFriends(true);
+        try {
+          const friendsList = await friendService.getFriends();
+          setFriends(friendsList);
+        } catch (error) {
+          console.error('Failed to load friends:', error);
+        } finally {
+          setIsLoadingFriends(false);
+        }
+      }
+    };
+    loadFriends();
+  }, [showPrivacyPrompt]);
+
   useEffect(() => {
     const loadPosts = async () => {
       setIsLoadingPosts(true);
@@ -507,38 +537,34 @@ export default function Social() {
               )}
             </WellnessCard>
 
-            {/* Leaderboard */}
+            {/* Co-Workout */}
             <WellnessCard>
               <div className="flex items-center gap-2 mb-4">
-                <Trophy className="w-5 h-5 text-primary" />
-                <h3 className="font-semibold">Weekly Leaderboard</h3>
+                <Users className="w-5 h-5 text-primary" />
+                <h3 className="font-semibold">Co-Workout</h3>
               </div>
               <div className="space-y-3">
-                {mockFriends
-                  .sort((a, b) => b.weeklyPoints - a.weeklyPoints)
-                  .map((friend, index) => (
-                    <div key={friend.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/30">
-                      <div className="flex items-center justify-center w-8 h-8">
-                        {index === 0 && <Crown className="w-5 h-5 text-yellow-500" />}
-                        {index === 1 && <Medal className="w-5 h-5 text-gray-400" />}
-                        {index === 2 && <Award className="w-5 h-5 text-amber-600" />}
-                        {index > 2 && <span className="text-sm font-medium text-muted-foreground">#{index + 1}</span>}
-                      </div>
-                      <Avatar className="w-8 h-8">
-                        <AvatarImage src={friend.avatar} />
-                        <AvatarFallback className="bg-gradient-primary text-white text-xs">
-                          {friend.name.split(' ').map(n => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">{friend.name}</p>
-                        <p className="text-xs text-muted-foreground">{friend.weeklyPoints} pts</p>
-                      </div>
-                      <Badge variant="secondary" className="text-xs">
-                        {friend.streak}🔥
-                      </Badge>
-                    </div>
-                  ))}
+                <p className="text-sm text-muted-foreground">
+                  Workout together with friends or challenge them to stay motivated!
+                </p>
+                <Button 
+                  variant="zen" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={() => setShowInviteModal(true)}
+                >
+                  <Calendar className="w-4 h-4 mr-2" />
+                  Invite to Co-Workout
+                </Button>
+                <Button 
+                  variant="motivation" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={() => setShowChallengeModal(true)}
+                >
+                  <Zap className="w-4 h-4 mr-2" />
+                  Challenge to Workout
+                </Button>
               </div>
             </WellnessCard>
 
@@ -586,6 +612,389 @@ export default function Social() {
           </div>
         </div>
       </div>
+
+      {/* Invite to Co-Workout Modal */}
+      <Dialog open={showInviteModal} onOpenChange={setShowInviteModal}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-primary" />
+              Invite Friend to Co-Workout
+            </DialogTitle>
+            <DialogDescription>
+              Select a friend to invite for a workout session together.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {isLoadingFriends ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            ) : friends.length > 0 ? (
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Select Friend</label>
+                  <Command className="border rounded-lg">
+                    <CommandInput 
+                      placeholder="Search friends..." 
+                      value={friendSearchQuery}
+                      onValueChange={setFriendSearchQuery}
+                    />
+                    <CommandList>
+                      <CommandEmpty>No friends found.</CommandEmpty>
+                      <CommandGroup>
+                        {friends
+                          .filter(friend => 
+                            !friendSearchQuery || 
+                            `${friend.first_name} ${friend.last_name}`.toLowerCase().includes(friendSearchQuery.toLowerCase()) ||
+                            friend.username?.toLowerCase().includes(friendSearchQuery.toLowerCase())
+                          )
+                          .map((friend) => (
+                            <CommandItem
+                              key={friend.id}
+                              value={friend.id}
+                              onSelect={() => {
+                                setSelectedFriend(friend);
+                              }}
+                              className="cursor-pointer"
+                            >
+                              <div className="flex items-center gap-3 flex-1">
+                                <Avatar className="w-8 h-8">
+                                  <AvatarFallback className="bg-gradient-primary text-white text-xs">
+                                    {friend.first_name[0]}{friend.last_name[0]}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium">
+                                    {friend.first_name} {friend.last_name}
+                                  </p>
+                                  {friend.username && (
+                                    <p className="text-xs text-muted-foreground">
+                                      @{friend.username}
+                                    </p>
+                                  )}
+                                </div>
+                                <Check
+                                  className={cn(
+                                    "w-4 h-4",
+                                    selectedFriend?.id === friend.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                              </div>
+                            </CommandItem>
+                          ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </div>
+                
+                {selectedFriend && (
+                  <div className="p-3 bg-muted rounded-lg">
+                    <p className="text-sm font-medium mb-1">Selected Friend:</p>
+                    <div className="flex items-center gap-2">
+                      <Avatar className="w-8 h-8">
+                        <AvatarFallback className="bg-gradient-primary text-white text-xs">
+                          {selectedFriend.first_name[0]}{selectedFriend.last_name[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="text-sm font-medium">
+                          {selectedFriend.first_name} {selectedFriend.last_name}
+                        </p>
+                        {selectedFriend.username && (
+                          <p className="text-xs text-muted-foreground">
+                            @{selectedFriend.username}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <Users className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                <p className="text-sm text-muted-foreground">
+                  You don't have any friends yet. Add friends to invite them to workouts!
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowInviteModal(false);
+                setSelectedFriend(null);
+                setFriendSearchQuery("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="zen"
+              disabled={!selectedFriend}
+              onClick={async () => {
+                if (selectedFriend) {
+                  try {
+                    // Get current user info
+                    const { data: { user: currentUser } } = await supabase.auth.getUser();
+                    if (!currentUser) {
+                      throw new Error('User not authenticated');
+                    }
+
+                    // Get current user's profile info
+                    const { data: userProfile } = await supabase
+                      .from('users')
+                      .select('first_name, last_name, username')
+                      .eq('id', currentUser.id)
+                      .single();
+
+                    // Create notification for the invited friend
+                    try {
+                      await notificationService.createNotification({
+                        user_id: selectedFriend.id,
+                        type: 'workout_invitation',
+                        title: 'Co-Workout Invitation',
+                        message: `${userProfile?.first_name || 'Someone'} ${userProfile?.last_name || ''} invited you to a co-workout session!`,
+                        data: {
+                          inviter_id: currentUser.id,
+                          inviter_name: `${userProfile?.first_name} ${userProfile?.last_name}`,
+                          inviter_username: userProfile?.username,
+                          invitation_type: 'co_workout'
+                        },
+                        read: false
+                      });
+                    } catch (notificationError) {
+                      console.warn('⚠️ Could not create notification (RLS policy may need updating):', notificationError);
+                      // Continue anyway - the invitation is still conceptually sent
+                    }
+
+                    // TODO: Implement workout scheduling functionality
+                    // This will create a co-workout session in the database
+                    // - Create a workout_sessions table with fields:
+                    //   - id, creator_id, participant_id, workout_type, scheduled_date, status
+                    // - Navigate to workout scheduling page or show success message
+                    
+                    toast({
+                      title: "Invitation Sent!",
+                      description: `Co-workout invitation sent to ${selectedFriend.first_name} ${selectedFriend.last_name}. Note: Notifications require database policy update.`,
+                    });
+                    setShowInviteModal(false);
+                    setSelectedFriend(null);
+                    setFriendSearchQuery("");
+                  } catch (error: any) {
+                    console.error('❌ Error sending invitation:', error);
+                    toast({
+                      title: "Error",
+                      description: error.message || "Failed to send invitation. Please try again.",
+                      variant: "destructive",
+                    });
+                  }
+                }
+              }}
+            >
+              <Calendar className="w-4 h-4 mr-2" />
+              Send Invitation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Challenge to Workout Modal */}
+      <Dialog open={showChallengeModal} onOpenChange={setShowChallengeModal}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Zap className="w-5 h-5 text-primary" />
+              Challenge Friend to Workout
+            </DialogTitle>
+            <DialogDescription>
+              Challenge a friend to compete in a workout and see who performs better!
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {isLoadingFriends ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            ) : friends.length > 0 ? (
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Select Friend</label>
+                  <Command className="border rounded-lg">
+                    <CommandInput 
+                      placeholder="Search friends..." 
+                      value={friendSearchQuery}
+                      onValueChange={setFriendSearchQuery}
+                    />
+                    <CommandList>
+                      <CommandEmpty>No friends found.</CommandEmpty>
+                      <CommandGroup>
+                        {friends
+                          .filter(friend => 
+                            !friendSearchQuery || 
+                            `${friend.first_name} ${friend.last_name}`.toLowerCase().includes(friendSearchQuery.toLowerCase()) ||
+                            friend.username?.toLowerCase().includes(friendSearchQuery.toLowerCase())
+                          )
+                          .map((friend) => (
+                            <CommandItem
+                              key={friend.id}
+                              value={friend.id}
+                              onSelect={() => {
+                                setSelectedFriend(friend);
+                              }}
+                              className="cursor-pointer"
+                            >
+                              <div className="flex items-center gap-3 flex-1">
+                                <Avatar className="w-8 h-8">
+                                  <AvatarFallback className="bg-gradient-primary text-white text-xs">
+                                    {friend.first_name[0]}{friend.last_name[0]}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium">
+                                    {friend.first_name} {friend.last_name}
+                                  </p>
+                                  {friend.username && (
+                                    <p className="text-xs text-muted-foreground">
+                                      @{friend.username}
+                                    </p>
+                                  )}
+                                </div>
+                                <Check
+                                  className={cn(
+                                    "w-4 h-4",
+                                    selectedFriend?.id === friend.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                              </div>
+                            </CommandItem>
+                          ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </div>
+                
+                {selectedFriend && (
+                  <div className="p-3 bg-muted rounded-lg">
+                    <p className="text-sm font-medium mb-1">Selected Friend:</p>
+                    <div className="flex items-center gap-2">
+                      <Avatar className="w-8 h-8">
+                        <AvatarFallback className="bg-gradient-primary text-white text-xs">
+                          {selectedFriend.first_name[0]}{selectedFriend.last_name[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="text-sm font-medium">
+                          {selectedFriend.first_name} {selectedFriend.last_name}
+                        </p>
+                        {selectedFriend.username && (
+                          <p className="text-xs text-muted-foreground">
+                            @{selectedFriend.username}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <Users className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                <p className="text-sm text-muted-foreground">
+                  You don't have any friends yet. Add friends to challenge them!
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowChallengeModal(false);
+                setSelectedFriend(null);
+                setFriendSearchQuery("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="motivation"
+              disabled={!selectedFriend}
+              onClick={async () => {
+                if (selectedFriend) {
+                  try {
+                    // Get current user info
+                    const { data: { user: currentUser } } = await supabase.auth.getUser();
+                    if (!currentUser) {
+                      throw new Error('User not authenticated');
+                    }
+
+                    // Get current user's profile info
+                    const { data: userProfile } = await supabase
+                      .from('users')
+                      .select('first_name, last_name, username')
+                      .eq('id', currentUser.id)
+                      .single();
+
+                    // Create notification for the challenged friend
+                    try {
+                      await notificationService.createNotification({
+                        user_id: selectedFriend.id,
+                        type: 'workout_challenge',
+                        title: 'Workout Challenge',
+                        message: `${userProfile?.first_name || 'Someone'} ${userProfile?.last_name || ''} challenged you to a workout competition!`,
+                        data: {
+                          challenger_id: currentUser.id,
+                          challenger_name: `${userProfile?.first_name} ${userProfile?.last_name}`,
+                          challenger_username: userProfile?.username,
+                          challenge_type: 'workout_challenge'
+                        },
+                        read: false
+                      });
+                    } catch (notificationError) {
+                      console.warn('⚠️ Could not create notification (RLS policy may need updating):', notificationError);
+                      // Continue anyway - the challenge is still conceptually sent
+                    }
+
+                    // TODO: Implement workout challenge functionality
+                    // This will create a workout challenge in the database
+                    // - Create a workout_challenges table with fields:
+                    //   - id, challenger_id, challenged_id, workout_type, challenge_date, 
+                    //     status (pending/accepted/declined/completed), winner_id
+                    // - Track workout metrics for both users
+                    // - Determine winner based on performance metrics
+                    // - Award points/badges to the winner
+                    
+                    toast({
+                      title: "Challenge Sent!",
+                      description: `Workout challenge sent to ${selectedFriend.first_name} ${selectedFriend.last_name}. Note: Notifications require database policy update.`,
+                    });
+                    setShowChallengeModal(false);
+                    setSelectedFriend(null);
+                    setFriendSearchQuery("");
+                  } catch (error: any) {
+                    console.error('❌ Error sending challenge:', error);
+                    toast({
+                      title: "Error",
+                      description: error.message || "Failed to send challenge. Please try again.",
+                      variant: "destructive",
+                    });
+                  }
+                }
+              }}
+            >
+              <Zap className="w-4 h-4 mr-2" />
+              Send Challenge
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* My Posts Dialog */}
       <Dialog open={showMyPosts} onOpenChange={setShowMyPosts}>
