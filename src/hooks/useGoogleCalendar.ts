@@ -22,11 +22,22 @@ export interface CalendarEvent {
     displayName?: string;
     responseStatus: string;
   }>;
+  calendarId?: string;
+  calendarName?: string;
+  calendarColor?: string;
+}
+
+export interface CalendarInfo {
+  id: string;
+  summary: string;
+  backgroundColor: string;
+  primary: boolean;
 }
 
 export interface GoogleCalendarState {
   isAuthenticated: boolean;
   events: CalendarEvent[];
+  calendars: CalendarInfo[];
   isLoading: boolean;
   error: string | null;
 }
@@ -46,6 +57,7 @@ export function useGoogleCalendar() {
   const [state, setState] = useState<GoogleCalendarState>({
     isAuthenticated: false,
     events: [],
+    calendars: [],
     isLoading: false,
     error: null,
   });
@@ -78,6 +90,7 @@ export function useGoogleCalendar() {
         setState({
           isAuthenticated: false,
           events: [],
+          calendars: [],
           isLoading: false,
           error: null,
         });
@@ -98,7 +111,7 @@ export function useGoogleCalendar() {
     initializeAuth();
   }, [user?.id, checkConnectionStatus]);
 
-  // Fetch calendar events from backend
+  // Fetch calendar events from all calendars
   const fetchEvents = useCallback(async () => {
     if (!user?.id) {
       setState(prev => ({ ...prev, error: 'Please log in to view calendar events' }));
@@ -136,8 +149,87 @@ export function useGoogleCalendar() {
 
       const data = await response.json();
       const events = data.items || [];
+      const calendars = data.calendars || [];
       
       console.log('Google Calendar Events Fetched:', {
+        totalEvents: events.length,
+        totalCalendars: calendars.length,
+        events: events.map((event: any) => ({
+          id: event.id,
+          summary: event.summary || 'No title',
+          start: event.start,
+          end: event.end,
+          calendarName: event.calendarName,
+        }))
+      });
+      
+      setState(prev => ({ 
+        ...prev, 
+        events: events.map((event: any) => ({
+          id: event.id,
+          summary: event.summary || 'No title',
+          description: event.description,
+          start: event.start,
+          end: event.end,
+          location: event.location,
+          attendees: event.attendees,
+          calendarId: event.calendarId,
+          calendarName: event.calendarName,
+          calendarColor: event.calendarColor,
+        })),
+        calendars: calendars,
+        isLoading: false 
+      }));
+    } catch (error) {
+      console.error('Fetch events error:', error);
+      setState(prev => ({ 
+        ...prev, 
+        error: error instanceof Error ? error.message : 'Failed to fetch events',
+        isLoading: false 
+      }));
+    }
+  }, [user?.id]);
+
+  // Fetch events from a specific calendar by ID
+  const fetchEventsFromCalendar = useCallback(async (calendarId: string) => {
+    if (!user?.id) {
+      setState(prev => ({ ...prev, error: 'Please log in to view calendar events' }));
+      return;
+    }
+
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+
+    try {
+      const now = new Date();
+      const timeMin = now.toISOString();
+      const timeMax = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000)).toISOString(); // Next 7 days
+
+      const params = new URLSearchParams({
+        userId: user.id,
+        timeMin,
+        timeMax,
+        maxResults: '20',
+      });
+
+      const response = await fetch(`${BACKEND_URL}/api/google/calendar/${encodeURIComponent(calendarId)}/events?${params.toString()}`);
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          setState(prev => ({ 
+            ...prev, 
+            isAuthenticated: false,
+            error: 'Not authenticated with Google Calendar',
+            isLoading: false 
+          }));
+          return;
+        }
+        throw new Error('Failed to fetch calendar events');
+      }
+
+      const data = await response.json();
+      const events = data.items || [];
+      
+      console.log(`Google Calendar Events Fetched from calendar ${calendarId}:`, {
         totalEvents: events.length,
         events: events.map((event: any) => ({
           id: event.id,
@@ -157,6 +249,9 @@ export function useGoogleCalendar() {
           end: event.end,
           location: event.location,
           attendees: event.attendees,
+          calendarId: event.calendarId,
+          calendarName: event.calendarName,
+          calendarColor: event.calendarColor,
         })),
         isLoading: false 
       }));
@@ -190,6 +285,7 @@ export function useGoogleCalendar() {
       setState({
         isAuthenticated: false,
         events: [],
+        calendars: [],
         isLoading: false,
         error: null,
       });
@@ -215,5 +311,6 @@ export function useGoogleCalendar() {
     ...state,
     signOut,
     refreshEvents,
+    fetchEventsFromCalendar,
   };
 }

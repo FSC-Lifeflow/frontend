@@ -4,10 +4,12 @@ import fetch from 'node-fetch';
  * Token Service - Handles fetching and refreshing OAuth tokens
  */
 export class TokenService {
-  constructor(supabase, googleClientId, googleClientSecret) {
+  constructor(supabase, googleClientId, googleClientSecret, fitbitClientId, fitbitClientSecret) {
     this.supabase = supabase;
     this.googleClientId = googleClientId;
     this.googleClientSecret = googleClientSecret;
+    this.fitbitClientId = fitbitClientId;
+    this.fitbitClientSecret = fitbitClientSecret;
   }
 
   /**
@@ -126,6 +128,42 @@ export class TokenService {
   }
 
   /**
+   * Refresh Fitbit access token
+   */
+  async refreshFitbitToken(refreshToken) {
+    if (!this.fitbitClientId || !this.fitbitClientSecret) {
+      throw new Error('Fitbit OAuth not configured');
+    }
+
+    const tokenResponse = await fetch('https://api.fitbit.com/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${Buffer.from(`${this.fitbitClientId}:${this.fitbitClientSecret}`).toString('base64')}`,
+      },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      }),
+    });
+
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
+      throw new Error(`Fitbit token refresh failed: ${errorText}`);
+    }
+
+    const tokens = await tokenResponse.json();
+    const expiresAt = new Date(Date.now() + (tokens.expires_in * 1000));
+
+    return {
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expires_at: expiresAt.toISOString(),
+      expires_in: tokens.expires_in,
+    };
+  }
+
+  /**
    * Get valid Google token (refresh if needed)
    */
   async getValidGoogleToken(userId) {
@@ -155,6 +193,43 @@ export class TokenService {
         .eq('user_id', userId);
 
       console.log(`Token refreshed and updated for user ${userId}`);
+      return newTokens.access_token;
+    }
+
+    return tokenData.access_token;
+  }
+
+  /**
+   * Get valid Fitbit token (refresh if needed)
+   */
+  async getValidFitbitToken(userId) {
+    const { data: tokenData, error } = await this.supabase
+      .from('fitbit_tokens')
+      .select('access_token, refresh_token, expires_at')
+      .eq('user_id', userId)
+      .single();
+
+    if (error || !tokenData) {
+      throw new Error('User has not connected Fitbit');
+    }
+
+    // Check if token needs refresh
+    if (this.isTokenExpired(tokenData.expires_at)) {
+      console.log(`Fitbit token expired for user ${userId}, refreshing...`);
+      
+      const newTokens = await this.refreshFitbitToken(tokenData.refresh_token);
+
+      // Update Supabase with new token
+      await this.supabase
+        .from('fitbit_tokens')
+        .update({
+          access_token: newTokens.access_token,
+          refresh_token: newTokens.refresh_token,
+          expires_at: newTokens.expires_at,
+        })
+        .eq('user_id', userId);
+
+      console.log(`Fitbit token refreshed and updated for user ${userId}`);
       return newTokens.access_token;
     }
 

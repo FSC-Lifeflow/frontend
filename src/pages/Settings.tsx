@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { WellnessLayout } from "@/components/WellnessLayout";
 import { WellnessCard } from "@/components/WellnessCard";
 import { Button } from "@/components/ui/button";
@@ -8,17 +9,22 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { authService } from "@/services/authService";
 import { useGoogleCalendarOAuth } from "@/hooks/useGoogleCalendarOAuth";
-import { Settings as SettingsIcon, Bell, Shield, Smartphone, Calendar, CheckCircle2 } from "lucide-react";
+import { useFitbitOAuth } from "@/hooks/useFitbitOAuth";
+import { Settings as SettingsIcon, Bell, Shield, Smartphone, Calendar, CheckCircle2, Activity } from "lucide-react";
 import { useTheme } from "next-themes";
 
 export default function Settings() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { initiateOAuth, isLoading: oauthLoading } = useGoogleCalendarOAuth();
+  const { initiateOAuth: initiateFitbitOAuth, isLoading: fitbitOauthLoading } = useFitbitOAuth();
   const [socialPrivacy, setSocialPrivacy] = useState(true);
   const [loading, setLoading] = useState(true);
   const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
   const [checkingConnection, setCheckingConnection] = useState(true);
+  const [fitbitConnected, setFitbitConnected] = useState(false);
+  const [checkingFitbitConnection, setCheckingFitbitConnection] = useState(true);
 
   // Check if Google Calendar is connected via backend API
   useEffect(() => {
@@ -47,6 +53,33 @@ export default function Settings() {
     checkGoogleConnection();
   }, [user?.id]);
 
+  // Check if Fitbit is connected via backend API
+  useEffect(() => {
+    const checkFitbitConnection = async () => {
+      if (!user?.id) {
+        setCheckingFitbitConnection(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`http://localhost:3001/api/fitbit/status?userId=${user.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setFitbitConnected(data.connected && data.hasRefreshToken);
+        } else {
+          setFitbitConnected(false);
+        }
+      } catch (error) {
+        console.error('Error checking Fitbit connection:', error);
+        setFitbitConnected(false);
+      } finally {
+        setCheckingFitbitConnection(false);
+      }
+    };
+
+    checkFitbitConnection();
+  }, [user?.id]);
+
   // Load user's current social privacy setting
   useEffect(() => {
     const loadUserSettings = async () => {
@@ -57,6 +90,32 @@ export default function Settings() {
     };
     loadUserSettings();
   }, [user]);
+
+  // Show success message after OAuth redirect
+  useEffect(() => {
+    const fitbitParam = searchParams.get('fitbit');
+    const calendarParam = searchParams.get('calendar');
+    
+    if (fitbitParam === 'connected') {
+      toast({
+        title: "Fitbit Connected",
+        description: "Your Fitbit account has been successfully connected.",
+      });
+      // Remove the query parameter
+      searchParams.delete('fitbit');
+      setSearchParams(searchParams, { replace: true });
+    }
+    
+    if (calendarParam === 'connected') {
+      toast({
+        title: "Google Calendar Connected",
+        description: "Your Google Calendar has been successfully connected.",
+      });
+      // Remove the query parameter
+      searchParams.delete('calendar');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams, toast]);
 
   // Handle social privacy toggle with auto-save
   const handleSocialPrivacyChange = async (newValue: boolean) => {
@@ -126,6 +185,47 @@ export default function Settings() {
       toast({
         title: "Error",
         description: "Failed to disconnect Google Calendar. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleFitbitConnect = async () => {
+    try {
+      initiateFitbitOAuth();
+    } catch (error) {
+      toast({
+        title: "Connection Failed",
+        description: "Failed to connect Fitbit. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleFitbitDisconnect = async () => {
+    if (!user?.id) return;
+
+    try {
+      const response = await fetch('http://localhost:3001/api/fitbit/disconnect', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      if (!response.ok) throw new Error('Failed to disconnect');
+
+      setFitbitConnected(false);
+      toast({
+        title: "Disconnected",
+        description: "Fitbit has been disconnected.",
+      });
+    } catch (error) {
+      console.error('Error disconnecting Fitbit:', error);
+      toast({
+        title: "Error",
+        description: "Failed to disconnect Fitbit. Please try again.",
         variant: "destructive",
       });
     }
@@ -286,19 +386,46 @@ export default function Settings() {
                 <h2 className="text-xl font-semibold">Connected Devices</h2>
               </div>
               <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                  <div>
-                    <p className="font-medium">Google Fit</p>
-                    <p className="text-sm text-muted-foreground">Connected</p>
+                <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border-2 border-primary/20">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm">
+                      <Activity className="w-6 h-6 text-blue-500" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">Fitbit</p>
+                        {fitbitConnected && (
+                          <CheckCircle2 className="w-4 h-4 text-green-500" />
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {checkingFitbitConnection 
+                          ? "Checking connection..." 
+                          : fitbitConnected 
+                            ? "Connected with refresh token" 
+                            : "Not connected"}
+                      </p>
+                    </div>
                   </div>
-                  <Button variant="zen" size="sm">Disconnect</Button>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                  <div>
-                    <p className="font-medium">Fitbit</p>
-                    <p className="text-sm text-muted-foreground">Not connected</p>
-                  </div>
-                  <Button variant="wellness" size="sm">Connect</Button>
+                  {fitbitConnected ? (
+                    <Button 
+                      variant="zen" 
+                      size="sm"
+                      onClick={handleFitbitDisconnect}
+                      disabled={checkingFitbitConnection}
+                    >
+                      Disconnect
+                    </Button>
+                  ) : (
+                    <Button 
+                      variant="wellness" 
+                      size="sm"
+                      onClick={handleFitbitConnect}
+                      disabled={fitbitOauthLoading || checkingFitbitConnection}
+                    >
+                      {fitbitOauthLoading ? "Connecting..." : "Connect"}
+                    </Button>
+                  )}
                 </div>
               </div>
             </WellnessCard>

@@ -1,0 +1,132 @@
+table_name,column_name,data_type,is_nullable,column_default
+chat_conversations,id,uuid,NO,gen_random_uuid()
+chat_conversations,user_id,uuid,YES,null
+chat_conversations,title,text,NO,null
+chat_conversations,is_pinned,boolean,YES,false
+chat_conversations,created_at,timestamp with time zone,YES,now()
+chat_conversations,updated_at,timestamp with time zone,YES,now()
+chat_messages,id,uuid,NO,gen_random_uuid()
+chat_messages,conversation_id,uuid,YES,null
+chat_messages,content,text,NO,null
+chat_messages,is_user,boolean,NO,null
+chat_messages,timestamp,timestamp with time zone,YES,now()
+fitbit_activity_data,id,uuid,NO,uuid_generate_v4()
+fitbit_activity_data,user_id,uuid,YES,null
+fitbit_activity_data,date,date,NO,null
+fitbit_activity_data,steps,integer,YES,null
+fitbit_activity_data,calories_out,integer,YES,null
+fitbit_activity_data,activity_calories,integer,YES,null
+fitbit_activity_data,calories_bmr,integer,YES,null
+fitbit_activity_data,sedentary_minutes,integer,YES,null
+fitbit_activity_data,lightly_active_minutes,integer,YES,null
+fitbit_activity_data,fairly_active_minutes,integer,YES,null
+fitbit_activity_data,very_active_minutes,integer,YES,null
+fitbit_activity_data,total_distance,numeric,YES,null
+fitbit_activity_data,resting_heart_rate,integer,YES,null
+fitbit_activity_data,raw_data,jsonb,YES,null
+fitbit_activity_data,created_at,timestamp without time zone,YES,now()
+fitbit_activity_data,updated_at,timestamp without time zone,YES,now()
+fitbit_heart_rate_data,id,uuid,NO,uuid_generate_v4()
+fitbit_heart_rate_data,user_id,uuid,YES,null
+fitbit_heart_rate_data,date,date,NO,null
+fitbit_heart_rate_data,resting_heart_rate,integer,YES,null
+fitbit_heart_rate_data,heart_rate_zones,jsonb,YES,null
+fitbit_heart_rate_data,raw_data,jsonb,YES,null
+fitbit_heart_rate_data,created_at,timestamp without time zone,YES,now()
+fitbit_heart_rate_data,updated_at,timestamp without time zone,YES,now()
+fitbit_sleep_data,id,uuid,NO,uuid_generate_v4()
+fitbit_sleep_data,user_id,uuid,YES,null
+fitbit_sleep_data,date,date,NO,null
+fitbit_sleep_data,duration,integer,YES,null
+fitbit_sleep_data,minutes_asleep,integer,YES,null
+fitbit_sleep_data,minutes_awake,integer,YES,null
+fitbit_sleep_data,efficiency,integer,YES,null
+fitbit_sleep_data,start_time,timestamp without time zone,YES,null
+fitbit_sleep_data,end_time,timestamp without time zone,YES,null
+fitbit_sleep_data,awakenings_count,integer,YES,null
+fitbit_sleep_data,deep_sleep_minutes,integer,YES,null
+fitbit_sleep_data,light_sleep_minutes,integer,YES,null
+fitbit_sleep_data,rem_sleep_minutes,integer,YES,null
+fitbit_sleep_data,wake_minutes,integer,YES,null
+fitbit_sleep_data,raw_data,jsonb,YES,null
+fitbit_sleep_data,created_at,timestamp without time zone,YES,now()
+fitbit_sleep_data,updated_at,timestamp without time zone,YES,now()
+fitbit_sync_logs,id,uuid,NO,uuid_generate_v4()
+fitbit_sync_logs,user_id,uuid,YES,null
+fitbit_sync_logs,sync_type,text,YES,null
+fitbit_sync_logs,status,text,YES,null
+fitbit_sync_logs,error_message,text,YES,null
+fitbit_sync_logs,synced_at,timestamp without time zone,YES,now()
+fitbit_tokens,id,uuid,NO,gen_random_uuid()
+fitbit_tokens,user_id,uuid,NO,null
+fitbit_tokens,access_token,text,NO,null
+fitbit_tokens,refresh_token,text,NO,null
+fitbit_tokens,expires_at,timestamp with time zone,NO,null
+fitbit_tokens,scope,text,YES,null
+fitbit_tokens,created_at,timestamp with time zone,YES,now()
+fitbit_tokens,updated_at,timestamp with time zone,YES,now()
+friend_requests,id,uuid,NO,gen_random_uuid()
+friend_requests,sender_id,uuid,YES,null
+friend_requests,receiver_id,uuid,YES,null
+friend_requests,status,text,YES,'pending'::text
+friend_requests,created_at,timestamp with time zone,YES,now()
+friend_requests,updated_at,timestamp with time zone,YES,now()
+google_calendar_tokens,id,uuid,NO,gen_random_uuid()
+google_calendar_tokens,user_id,text,NO,null
+google_calendar_tokens,access_token,text,NO,null
+google_calendar_tokens,refresh_token,text,YES,null
+google_calendar_tokens,expires_at,timestamp with time zone,NO,null
+google_calendar_tokens,scope,text,NO,null
+google_calendar_tokens,created_at,timestamp with time zone,YES,now()
+google_calendar_tokens,updated_at,timestamp with time zone,YES,now()
+notifications,id,uuid,NO,gen_random_uuid()
+notifications,user_id,uuid,YES,null
+notifications,type,text,NO,null
+notifications,title,text,NO,null
+notifications,message,text,NO,null
+notifications,data,jsonb,YES,null
+notifications,read,boolean,YES,false
+notifications,created_at,timestamp with time zone,YES,now()
+notifications,updated_at,timestamp with time zone,YES,now()
+user_blocks,id,uuid,NO,gen_random_uuid()
+user_blocks,blocker_id,uuid,NO,null
+user_blocks,blocked_id,uuid,NO,null
+user_blocks,created_at,timestamp with time zone,NO,"timezone('utc'::text, now())"
+user_posts,id,uuid,NO,uuid_generate_v4()
+user_posts,user_id,uuid,NO,null
+user_posts,content,text,NO,null
+user_posts,created_at,timestamp with time zone,YES,now()
+user_posts,updated_at,timestamp with time zone,YES,now()
+user_posts,is_edited,boolean,YES,false
+user_social_settings,id,uuid,NO,gen_random_uuid()
+user_social_settings,user_id,uuid,YES,null
+user_social_settings,social_features_enabled,boolean,YES,false
+user_social_settings,profile_visibility,USER-DEFINED,YES,'private'::profile_visibility
+user_social_settings,allow_friend_requests,boolean,YES,true
+user_social_settings,created_at,timestamp with time zone,YES,now()
+user_social_settings,updated_at,timestamp with time zone,YES,now()
+users,id,uuid,NO,auth.uid()
+users,created_at,timestamp with time zone,NO,now()
+users,username,text,YES,null
+users,email,text,YES,null
+users,first_name,text,YES,null
+users,last_name,text,YES,null
+users,social_privacy,boolean,YES,true
+users,avatar_url,text,YES,null
+users,fitness_level,text,YES,null
+users,primary_goals,text,YES,null
+users,exercise_preferences,text,YES,null
+users,weekly_frequency,text,YES,null
+users,session_duration,text,YES,null
+users,equipment_access,text,YES,null
+users,physical_limitations,text,YES,null
+workouts,id,uuid,NO,gen_random_uuid()
+workouts,user_id,uuid,NO,null
+workouts,started_at,timestamp with time zone,NO,null
+workouts,type,text,NO,null
+workouts,duration_minutes,integer,NO,null
+workouts,satisfaction,integer,YES,null
+workouts,notes,text,YES,null
+workouts,created_at,timestamp with time zone,NO,now()
+workouts,source,text,YES,null
+workouts,external_id,text,YES,null

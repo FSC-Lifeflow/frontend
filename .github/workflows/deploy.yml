@@ -40,10 +40,20 @@ jobs:
           # Pull latest changes
           git pull origin production
           
-          # Install dependencies and build (if needed)
+          # Install dependencies and build frontend
           npm ci
           npm run build
 
-          # Restart Node.js backend (server.js)
-          pm2 reload all
+          # Verify backend structure exists
+          echo "Verifying backend structure..."
+          ls -la routes/ services/ server.js || echo "Warning: Some backend files missing"
+          
+          # Verify environment variables
+          if [ ! -f .env.server ]; then
+            echo "ERROR: .env.server not found! Backend will not work properly."
+          fi
+
+          # Restart Node.js backend with modular routes
+          # Using 'reload' for zero-downtime restart
+          pm2 reload all || pm2 restart all
           pm2 save

@@ -22,15 +22,15 @@ export function FitbitCallback() {
 
     if (code && state) {
       handleCallback(code, state).then(() => {
-        // Redirect back to dashboard after successful authentication
-        setTimeout(() => navigate('/'), 2000);
+        // Redirect back to settings after successful authentication
+        setTimeout(() => navigate('/settings?fitbit=connected'), 2000);
       }).catch((error) => {
         console.error('Callback handling error:', error);
-        setTimeout(() => navigate('/'), 3000);
+        setTimeout(() => navigate('/settings'), 3000);
       });
     } else {
       // No code or state, redirect back
-      navigate('/');
+      navigate('/settings');
     }
   }, [searchParams, handleCallback, navigate]);
 
