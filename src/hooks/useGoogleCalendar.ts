@@ -105,34 +105,6 @@ export function useGoogleCalendar() {
     }
   }, [user?.id]);
 
-  // Check authentication status on mount and when user changes
-  useEffect(() => {
-    const initializeAuth = async () => {
-      if (!user?.id) {
-        setState({
-          isAuthenticated: false,
-          events: [],
-          calendars: [],
-          isLoading: false,
-          error: null,
-        });
-        return;
-      }
-
-      const status = await checkConnectionStatus();
-      
-      if (status?.connected && status?.hasRefreshToken) {
-        setState(prev => ({ ...prev, isAuthenticated: true }));
-        // Fetch events on initialization if connected
-        fetchEvents();
-      } else {
-        setState(prev => ({ ...prev, isAuthenticated: false }));
-      }
-    };
-
-    initializeAuth();
-  }, [user?.id, checkConnectionStatus]);
-
   // Fetch calendar events from all calendars
   const fetchEvents = useCallback(async () => {
     if (!user?.id) {
@@ -211,6 +183,34 @@ export function useGoogleCalendar() {
       }));
     }
   }, [user?.id]);
+
+  // Check authentication status on mount and when user changes
+  useEffect(() => {
+    const initializeAuth = async () => {
+      if (!user?.id) {
+        setState({
+          isAuthenticated: false,
+          events: [],
+          calendars: [],
+          isLoading: false,
+          error: null,
+        });
+        return;
+      }
+
+      const status = await checkConnectionStatus();
+      
+      if (status?.connected && status?.hasRefreshToken) {
+        setState(prev => ({ ...prev, isAuthenticated: true }));
+        // Fetch events on initialization if connected
+        fetchEvents();
+      } else {
+        setState(prev => ({ ...prev, isAuthenticated: false }));
+      }
+    };
+
+    initializeAuth();
+  }, [user?.id, checkConnectionStatus, fetchEvents]);
 
   // Fetch events from a specific calendar by ID
   const fetchEventsFromCalendar = useCallback(async (calendarId: string) => {
