@@ -12,8 +12,7 @@ import { useGoogleCalendarOAuth } from "@/hooks/useGoogleCalendarOAuth";
 import { useFitbitOAuth } from "@/hooks/useFitbitOAuth";
 import { Settings as SettingsIcon, Bell, Shield, Smartphone, Calendar, CheckCircle2, Activity } from "lucide-react";
 import { useTheme } from "next-themes";
-
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+import { API_BASE_URL } from "@/lib/config";
 
 export default function Settings() {
   const { user } = useAuth();
@@ -37,7 +36,7 @@ export default function Settings() {
       }
 
       try {
-        const response = await fetch(`${BACKEND_URL}/api/google/status?userId=${user.id}`);
+        const response = await fetch(`${API_BASE_URL}/api/google/status?userId=${user.id}`);
         if (response.ok) {
           const data = await response.json();
           setGoogleCalendarConnected(data.connected && data.hasRefreshToken);
@@ -64,7 +63,7 @@ export default function Settings() {
       }
 
       try {
-        const response = await fetch(`${BACKEND_URL}/api/fitbit/status?userId=${user.id}`);
+        const response = await fetch(`${API_BASE_URL}/api/fitbit/status?userId=${user.id}`);
         if (response.ok) {
           const data = await response.json();
           setFitbitConnected(data.connected && data.hasRefreshToken);
@@ -169,7 +168,7 @@ export default function Settings() {
     if (!user?.id) return;
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/google/disconnect`, {
+      const response = await fetch(`${API_BASE_URL}/api/google/disconnect`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -210,7 +209,7 @@ export default function Settings() {
     if (!user?.id) return;
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/fitbit/disconnect`, {
+      const response = await fetch(`${API_BASE_URL}/api/fitbit/disconnect`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',

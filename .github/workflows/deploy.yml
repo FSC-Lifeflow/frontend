@@ -54,6 +54,13 @@ jobs:
           fi
 
           # Restart Node.js backend with modular routes
-          # Using 'reload' for zero-downtime restart
-          pm2 reload all || pm2 restart all
+          # Start or reload the specific backend process
+          pm2 describe lifeflow-backend > /dev/null 2>&1
+          if [ $? -eq 0 ]; then
+            echo "Reloading existing backend process..."
+            pm2 reload lifeflow-backend
+          else
+            echo "Starting backend for the first time..."
+            pm2 start ecosystem.config.cjs
+          fi
           pm2 save
