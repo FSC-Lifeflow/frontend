@@ -13,6 +13,7 @@ type User = {
   email: string;
   created_at: string;
   social_privacy?: boolean;
+  activity_sharing?: boolean;
 };
 
 /**
@@ -322,18 +323,25 @@ export const authService = {
       console.log('🔧 updateUserProfile called with:', updates);
       console.log('🔧 social_privacy in updates:', updates.social_privacy);
       console.log('🔧 social_privacy type:', typeof updates.social_privacy);
+      console.log('🔧 activity_sharing in updates:', updates.activity_sharing);
+      console.log('🔧 activity_sharing type:', typeof updates.activity_sharing);
       
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('users')
         .update(updates)
-        .eq('id', userId);
+        .eq('id', userId)
+        .select();
 
       if (error) {
         console.error('❌ Failed to update user profile:', error);
-        throw new Error('Failed to update user profile.');
+        console.error('❌ Error code:', error.code);
+        console.error('❌ Error message:', error.message);
+        console.error('❌ Error details:', error.details);
+        throw error;
       }
       
       console.log('✅ Profile update successful');
+      console.log('✅ Updated data:', data);
     } catch (error) {
       throw error;
     }

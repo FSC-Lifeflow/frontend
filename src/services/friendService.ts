@@ -796,5 +796,51 @@ export const friendService = {
       console.error('Error getting friend suggestions:', error);
       return [];
     }
+  },
+
+  /**
+   * Gets all friends for a specific user (for viewing friend's profile)
+   * @param userId - ID of the user whose friends to fetch
+   * @returns Array of friends with their user information
+   */
+  async getFriendsOfUser(userId: string): Promise<SearchUser[]> {
+    try {
+      // Get all accepted friend requests where the specified user is either sender or receiver
+      const { data: friendRequests, error } = await supabase
+        .from('friend_requests')
+        .select('sender_id, receiver_id')
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+        .eq('status', 'accepted');
+
+      if (error) {
+        console.error('❌ Failed to get friend requests:', error);
+        throw new Error('Failed to get friends');
+      }
+
+      if (!friendRequests || friendRequests.length === 0) {
+        return [];
+      }
+
+      // Extract friend IDs (the other person in each relationship)
+      const friendIds = friendRequests.map(request => 
+        request.sender_id === userId ? request.receiver_id : request.sender_id
+      );
+
+      // Get user information for all friends
+      const { data: friends, error: friendsError } = await supabase
+        .from('users')
+        .select('id, username, first_name, last_name, email, created_at')
+        .in('id', friendIds);
+
+      if (friendsError) {
+        console.error('❌ Failed to get friends info:', friendsError);
+        throw new Error('Failed to get friends information');
+      }
+
+      return friends || [];
+    } catch (error) {
+      console.error('❌ Get friends of user error:', error);
+      throw error;
+    }
   }
 };

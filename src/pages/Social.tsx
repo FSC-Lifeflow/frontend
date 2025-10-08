@@ -4,11 +4,13 @@ import { WellnessCard } from "@/components/WellnessCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { 
   Search, Trophy, UserPlus, Crown, Medal, Award, Users,
-  Loader2, Share2, Edit, Trash2, FileText, Calendar, Zap
+  Loader2, Share2, Edit, Trash2, FileText, Calendar, Zap, X
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { userService, type SearchUser } from "@/services/userService";
@@ -55,8 +57,19 @@ export default function Social() {
   const [showChallengeModal, setShowChallengeModal] = useState(false);
   const [friends, setFriends] = useState<SearchUser[]>([]);
   const [isLoadingFriends, setIsLoadingFriends] = useState(false);
-  const [selectedFriend, setSelectedFriend] = useState<SearchUser | null>(null);
+  const [selectedFriends, setSelectedFriends] = useState<SearchUser[]>([]);
   const [friendSearchQuery, setFriendSearchQuery] = useState("");
+  
+  // Multi-step modal states
+  const [inviteStep, setInviteStep] = useState(1);
+  const [challengeStep, setChallengeStep] = useState(1);
+  
+  // Workout details states
+  const [workoutType, setWorkoutType] = useState("");
+  const [workoutTime, setWorkoutTime] = useState("");
+  const [workoutDuration, setWorkoutDuration] = useState("");
+  const [workoutPlace, setWorkoutPlace] = useState("");
+  const [workoutNote, setWorkoutNote] = useState("");
 
   const handleOptIn = () => {
     localStorage.setItem('socialOptIn', 'true');
@@ -614,7 +627,19 @@ export default function Social() {
       </div>
 
       {/* Invite to Co-Workout Modal */}
-      <Dialog open={showInviteModal} onOpenChange={setShowInviteModal}>
+      <Dialog open={showInviteModal} onOpenChange={(open) => {
+        setShowInviteModal(open);
+        if (!open) {
+          setInviteStep(1);
+          setWorkoutType("");
+          setWorkoutTime("");
+          setWorkoutDuration("");
+          setWorkoutPlace("");
+          setWorkoutNote("");
+          setSelectedFriends([]);
+          setFriendSearchQuery("");
+        }
+      }}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -622,19 +647,104 @@ export default function Social() {
               Invite Friend to Co-Workout
             </DialogTitle>
             <DialogDescription>
-              Select a friend to invite for a workout session together.
+              {inviteStep === 1 ? "Set workout details for your co-workout session." : "Select friends to invite to your workout."}
             </DialogDescription>
           </DialogHeader>
           
+          {/* Step Indicator */}
+          <div className="flex items-center justify-center gap-2 py-2">
+            <div className={`flex items-center justify-center w-8 h-8 rounded-full ${inviteStep === 1 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+              1
+            </div>
+            <div className="w-12 h-0.5 bg-muted"></div>
+            <div className={`flex items-center justify-center w-8 h-8 rounded-full ${inviteStep === 2 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+              2
+            </div>
+          </div>
+          
           <div className="space-y-4 py-4">
-            {isLoadingFriends ? (
+            {inviteStep === 1 ? (
+              /* Step 1: Workout Details */
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="invite-workout-type">Workout Type *</Label>
+                  <Select value={workoutType} onValueChange={setWorkoutType}>
+                    <SelectTrigger id="invite-workout-type">
+                      <SelectValue placeholder="Select workout type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="strength">Strength Training</SelectItem>
+                      <SelectItem value="cardio">Cardio</SelectItem>
+                      <SelectItem value="yoga">Yoga</SelectItem>
+                      <SelectItem value="pilates">Pilates</SelectItem>
+                      <SelectItem value="hiit">HIIT</SelectItem>
+                      <SelectItem value="running">Running</SelectItem>
+                      <SelectItem value="cycling">Cycling</SelectItem>
+                      <SelectItem value="swimming">Swimming</SelectItem>
+                      <SelectItem value="sports">Sports</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="invite-workout-time">Date & Time *</Label>
+                    <Input
+                      id="invite-workout-time"
+                      type="datetime-local"
+                      value={workoutTime}
+                      onChange={(e) => setWorkoutTime(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="invite-workout-duration">Duration *</Label>
+                    <Select value={workoutDuration} onValueChange={setWorkoutDuration}>
+                      <SelectTrigger id="invite-workout-duration">
+                        <SelectValue placeholder="Duration" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="15">15 min</SelectItem>
+                        <SelectItem value="30">30 min</SelectItem>
+                        <SelectItem value="45">45 min</SelectItem>
+                        <SelectItem value="60">1 hour</SelectItem>
+                        <SelectItem value="90">1.5 hours</SelectItem>
+                        <SelectItem value="120">2 hours</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="invite-workout-place">Place (Optional)</Label>
+                  <Input
+                    id="invite-workout-place"
+                    placeholder="e.g., Central Park, Gold's Gym, Online"
+                    value={workoutPlace}
+                    onChange={(e) => setWorkoutPlace(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="invite-workout-note">Note (Optional)</Label>
+                  <Textarea
+                    id="invite-workout-note"
+                    placeholder="Add any additional details or instructions..."
+                    value={workoutNote}
+                    onChange={(e) => setWorkoutNote(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+              </div>
+            ) : isLoadingFriends ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
               </div>
             ) : friends.length > 0 ? (
+              /* Step 2: Friend Selection */
               <>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Select Friend</label>
+                  <label className="text-sm font-medium">Select Friends</label>
                   <Command className="border rounded-lg">
                     <CommandInput 
                       placeholder="Search friends..." 
@@ -655,7 +765,14 @@ export default function Social() {
                               key={friend.id}
                               value={friend.id}
                               onSelect={() => {
-                                setSelectedFriend(friend);
+                                setSelectedFriends(prev => {
+                                  const isSelected = prev.some(f => f.id === friend.id);
+                                  if (isSelected) {
+                                    return prev.filter(f => f.id !== friend.id);
+                                  } else {
+                                    return [...prev, friend];
+                                  }
+                                });
                               }}
                               className="cursor-pointer"
                             >
@@ -678,7 +795,7 @@ export default function Social() {
                                 <Check
                                   className={cn(
                                     "w-4 h-4",
-                                    selectedFriend?.id === friend.id ? "opacity-100" : "opacity-0"
+                                    selectedFriends.some(f => f.id === friend.id) ? "opacity-100" : "opacity-0"
                                   )}
                                 />
                               </div>
@@ -689,25 +806,21 @@ export default function Social() {
                   </Command>
                 </div>
                 
-                {selectedFriend && (
+                {selectedFriends.length > 0 && (
                   <div className="p-3 bg-muted rounded-lg">
-                    <p className="text-sm font-medium mb-1">Selected Friend:</p>
-                    <div className="flex items-center gap-2">
-                      <Avatar className="w-8 h-8">
-                        <AvatarFallback className="bg-gradient-primary text-white text-xs">
-                          {selectedFriend.first_name[0]}{selectedFriend.last_name[0]}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="text-sm font-medium">
-                          {selectedFriend.first_name} {selectedFriend.last_name}
-                        </p>
-                        {selectedFriend.username && (
-                          <p className="text-xs text-muted-foreground">
-                            @{selectedFriend.username}
-                          </p>
-                        )}
-                      </div>
+                    <p className="text-sm font-medium mb-2">Selected Friends ({selectedFriends.length}):</p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedFriends.map(friend => (
+                        <Badge
+                          key={friend.id}
+                          variant="secondary"
+                          className="px-2 py-1 cursor-pointer hover:bg-destructive/10"
+                          onClick={() => setSelectedFriends(prev => prev.filter(f => f.id !== friend.id))}
+                        >
+                          {friend.first_name} {friend.last_name}
+                          <X className="w-3 h-3 ml-1" />
+                        </Badge>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -723,21 +836,43 @@ export default function Social() {
           </div>
 
           <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                setShowInviteModal(false);
-                setSelectedFriend(null);
-                setFriendSearchQuery("");
-              }}
-            >
-              Cancel
-            </Button>
-            <Button 
-              variant="zen"
-              disabled={!selectedFriend}
-              onClick={async () => {
-                if (selectedFriend) {
+            {inviteStep === 1 ? (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowInviteModal(false);
+                    setInviteStep(1);
+                    setWorkoutType("");
+                    setWorkoutTime("");
+                    setWorkoutDuration("");
+                    setWorkoutPlace("");
+                    setWorkoutNote("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  variant="zen"
+                  disabled={!workoutType || !workoutTime || !workoutDuration}
+                  onClick={() => setInviteStep(2)}
+                >
+                  Next: Select Friends
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setInviteStep(1)}
+                >
+                  Back
+                </Button>
+                <Button 
+                  variant="zen"
+                  disabled={selectedFriends.length === 0}
+                  onClick={async () => {
+                    if (selectedFriends.length > 0) {
                   try {
                     // Get current user info
                     const { data: { user: currentUser } } = await supabase.auth.getUser();
@@ -752,25 +887,32 @@ export default function Social() {
                       .eq('id', currentUser.id)
                       .single();
 
-                    // Create notification for the invited friend
-                    try {
-                      await notificationService.createNotification({
-                        user_id: selectedFriend.id,
+                    // Create notifications for all invited friends with workout details
+                    const notificationPromises = selectedFriends.map(friend =>
+                      notificationService.createNotification({
+                        user_id: friend.id,
                         type: 'workout_invitation',
                         title: 'Co-Workout Invitation',
-                        message: `${userProfile?.first_name || 'Someone'} ${userProfile?.last_name || ''} invited you to a co-workout session!`,
+                        message: `${userProfile?.first_name || 'Someone'} ${userProfile?.last_name || ''} invited you to a ${workoutType} workout!`,
                         data: {
                           inviter_id: currentUser.id,
                           inviter_name: `${userProfile?.first_name} ${userProfile?.last_name}`,
                           inviter_username: userProfile?.username,
-                          invitation_type: 'co_workout'
+                          invitation_type: 'co_workout',
+                          workout_type: workoutType,
+                          workout_time: workoutTime,
+                          workout_duration: workoutDuration,
+                          workout_place: workoutPlace || null,
+                          workout_note: workoutNote || null
                         },
                         read: false
-                      });
-                    } catch (notificationError) {
-                      console.warn('⚠️ Could not create notification (RLS policy may need updating):', notificationError);
-                      // Continue anyway - the invitation is still conceptually sent
-                    }
+                      }).catch(err => {
+                        console.warn(`⚠️ Could not create notification for ${friend.first_name}:`, err);
+                        return null;
+                      })
+                    );
+                    
+                    await Promise.all(notificationPromises);
 
                     // TODO: Implement workout scheduling functionality
                     // This will create a co-workout session in the database
@@ -778,33 +920,57 @@ export default function Social() {
                     //   - id, creator_id, participant_id, workout_type, scheduled_date, status
                     // - Navigate to workout scheduling page or show success message
                     
+                    const friendNames = selectedFriends.length === 1
+                      ? `${selectedFriends[0].first_name} ${selectedFriends[0].last_name}`
+                      : `${selectedFriends.length} friends`;
+                    
                     toast({
-                      title: "Invitation Sent!",
-                      description: `Co-workout invitation sent to ${selectedFriend.first_name} ${selectedFriend.last_name}.`,
+                      title: "Invitations Sent!",
+                      description: `Co-workout invitation sent to ${friendNames}.`,
                     });
-                    setShowInviteModal(false);
-                    setSelectedFriend(null);
-                    setFriendSearchQuery("");
-                  } catch (error: any) {
-                    console.error('❌ Error sending invitation:', error);
-                    toast({
-                      title: "Error",
-                      description: error.message || "Failed to send invitation. Please try again.",
-                      variant: "destructive",
-                    });
+                      setShowInviteModal(false);
+                      setInviteStep(1);
+                      setSelectedFriends([]);
+                      setFriendSearchQuery("");
+                      setWorkoutType("");
+                      setWorkoutTime("");
+                      setWorkoutDuration("");
+                      setWorkoutPlace("");
+                      setWorkoutNote("");
+                    } catch (error: any) {
+                      console.error('❌ Error sending invitation:', error);
+                      toast({
+                        title: "Error",
+                        description: error.message || "Failed to send invitation. Please try again.",
+                        variant: "destructive",
+                      });
+                    }
                   }
-                }
-              }}
-            >
-              <Calendar className="w-4 h-4 mr-2" />
-              Send Invitation
-            </Button>
+                }}
+              >
+                <Calendar className="w-4 h-4 mr-2" />
+                Send Invitation
+              </Button>
+            </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Challenge to Workout Modal */}
-      <Dialog open={showChallengeModal} onOpenChange={setShowChallengeModal}>
+      <Dialog open={showChallengeModal} onOpenChange={(open) => {
+        setShowChallengeModal(open);
+        if (!open) {
+          setChallengeStep(1);
+          setWorkoutType("");
+          setWorkoutTime("");
+          setWorkoutDuration("");
+          setWorkoutPlace("");
+          setWorkoutNote("");
+          setSelectedFriends([]);
+          setFriendSearchQuery("");
+        }
+      }}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -812,19 +978,104 @@ export default function Social() {
               Challenge Friend to Workout
             </DialogTitle>
             <DialogDescription>
-              Challenge a friend to compete in a workout and see who performs better!
+              {challengeStep === 1 ? "Set challenge details for your workout competition." : "Select friends to challenge."}
             </DialogDescription>
           </DialogHeader>
           
+          {/* Step Indicator */}
+          <div className="flex items-center justify-center gap-2 py-2">
+            <div className={`flex items-center justify-center w-8 h-8 rounded-full ${challengeStep === 1 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+              1
+            </div>
+            <div className="w-12 h-0.5 bg-muted"></div>
+            <div className={`flex items-center justify-center w-8 h-8 rounded-full ${challengeStep === 2 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+              2
+            </div>
+          </div>
+          
           <div className="space-y-4 py-4">
-            {isLoadingFriends ? (
+            {challengeStep === 1 ? (
+              /* Step 1: Challenge Details */
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="challenge-workout-type">Workout Type *</Label>
+                  <Select value={workoutType} onValueChange={setWorkoutType}>
+                    <SelectTrigger id="challenge-workout-type">
+                      <SelectValue placeholder="Select workout type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="strength">Strength Training</SelectItem>
+                      <SelectItem value="cardio">Cardio</SelectItem>
+                      <SelectItem value="yoga">Yoga</SelectItem>
+                      <SelectItem value="pilates">Pilates</SelectItem>
+                      <SelectItem value="hiit">HIIT</SelectItem>
+                      <SelectItem value="running">Running</SelectItem>
+                      <SelectItem value="cycling">Cycling</SelectItem>
+                      <SelectItem value="swimming">Swimming</SelectItem>
+                      <SelectItem value="sports">Sports</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="challenge-workout-time">Date & Time *</Label>
+                    <Input
+                      id="challenge-workout-time"
+                      type="datetime-local"
+                      value={workoutTime}
+                      onChange={(e) => setWorkoutTime(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="challenge-workout-duration">Duration *</Label>
+                    <Select value={workoutDuration} onValueChange={setWorkoutDuration}>
+                      <SelectTrigger id="challenge-workout-duration">
+                        <SelectValue placeholder="Duration" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="15">15 min</SelectItem>
+                        <SelectItem value="30">30 min</SelectItem>
+                        <SelectItem value="45">45 min</SelectItem>
+                        <SelectItem value="60">1 hour</SelectItem>
+                        <SelectItem value="90">1.5 hours</SelectItem>
+                        <SelectItem value="120">2 hours</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="challenge-workout-place">Place (Optional)</Label>
+                  <Input
+                    id="challenge-workout-place"
+                    placeholder="e.g., Central Park, Gold's Gym, Online"
+                    value={workoutPlace}
+                    onChange={(e) => setWorkoutPlace(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="challenge-workout-note">Challenge Note (Optional)</Label>
+                  <Textarea
+                    id="challenge-workout-note"
+                    placeholder="Add challenge rules or details..."
+                    value={workoutNote}
+                    onChange={(e) => setWorkoutNote(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+              </div>
+            ) : isLoadingFriends ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
               </div>
             ) : friends.length > 0 ? (
+              /* Step 2: Friend Selection */
               <>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Select Friend</label>
+                  <label className="text-sm font-medium">Select Friends</label>
                   <Command className="border rounded-lg">
                     <CommandInput 
                       placeholder="Search friends..." 
@@ -845,7 +1096,14 @@ export default function Social() {
                               key={friend.id}
                               value={friend.id}
                               onSelect={() => {
-                                setSelectedFriend(friend);
+                                setSelectedFriends(prev => {
+                                  const isSelected = prev.some(f => f.id === friend.id);
+                                  if (isSelected) {
+                                    return prev.filter(f => f.id !== friend.id);
+                                  } else {
+                                    return [...prev, friend];
+                                  }
+                                });
                               }}
                               className="cursor-pointer"
                             >
@@ -868,7 +1126,7 @@ export default function Social() {
                                 <Check
                                   className={cn(
                                     "w-4 h-4",
-                                    selectedFriend?.id === friend.id ? "opacity-100" : "opacity-0"
+                                    selectedFriends.some(f => f.id === friend.id) ? "opacity-100" : "opacity-0"
                                   )}
                                 />
                               </div>
@@ -879,25 +1137,21 @@ export default function Social() {
                   </Command>
                 </div>
                 
-                {selectedFriend && (
+                {selectedFriends.length > 0 && (
                   <div className="p-3 bg-muted rounded-lg">
-                    <p className="text-sm font-medium mb-1">Selected Friend:</p>
-                    <div className="flex items-center gap-2">
-                      <Avatar className="w-8 h-8">
-                        <AvatarFallback className="bg-gradient-primary text-white text-xs">
-                          {selectedFriend.first_name[0]}{selectedFriend.last_name[0]}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="text-sm font-medium">
-                          {selectedFriend.first_name} {selectedFriend.last_name}
-                        </p>
-                        {selectedFriend.username && (
-                          <p className="text-xs text-muted-foreground">
-                            @{selectedFriend.username}
-                          </p>
-                        )}
-                      </div>
+                    <p className="text-sm font-medium mb-2">Selected Friends ({selectedFriends.length}):</p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedFriends.map(friend => (
+                        <Badge
+                          key={friend.id}
+                          variant="secondary"
+                          className="px-2 py-1 cursor-pointer hover:bg-destructive/10"
+                          onClick={() => setSelectedFriends(prev => prev.filter(f => f.id !== friend.id))}
+                        >
+                          {friend.first_name} {friend.last_name}
+                          <X className="w-3 h-3 ml-1" />
+                        </Badge>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -913,21 +1167,43 @@ export default function Social() {
           </div>
 
           <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                setShowChallengeModal(false);
-                setSelectedFriend(null);
-                setFriendSearchQuery("");
-              }}
-            >
-              Cancel
-            </Button>
-            <Button 
-              variant="motivation"
-              disabled={!selectedFriend}
-              onClick={async () => {
-                if (selectedFriend) {
+            {challengeStep === 1 ? (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowChallengeModal(false);
+                    setChallengeStep(1);
+                    setWorkoutType("");
+                    setWorkoutTime("");
+                    setWorkoutDuration("");
+                    setWorkoutPlace("");
+                    setWorkoutNote("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  variant="motivation"
+                  disabled={!workoutType || !workoutTime || !workoutDuration}
+                  onClick={() => setChallengeStep(2)}
+                >
+                  Next: Select Friends
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setChallengeStep(1)}
+                >
+                  Back
+                </Button>
+                <Button 
+                  variant="motivation"
+                  disabled={selectedFriends.length === 0}
+                  onClick={async () => {
+                    if (selectedFriends.length > 0) {
                   try {
                     // Get current user info
                     const { data: { user: currentUser } } = await supabase.auth.getUser();
@@ -942,56 +1218,75 @@ export default function Social() {
                       .eq('id', currentUser.id)
                       .single();
 
-                    // Create notification for the challenged friend
-                    try {
-                      await notificationService.createNotification({
-                        user_id: selectedFriend.id,
-                        type: 'workout_challenge',
-                        title: 'Workout Challenge',
-                        message: `${userProfile?.first_name || 'Someone'} ${userProfile?.last_name || ''} challenged you to a workout competition!`,
-                        data: {
-                          challenger_id: currentUser.id,
-                          challenger_name: `${userProfile?.first_name} ${userProfile?.last_name}`,
-                          challenger_username: userProfile?.username,
-                          challenge_type: 'workout_challenge'
-                        },
-                        read: false
-                      });
-                    } catch (notificationError) {
-                      console.warn('⚠️ Could not create notification (RLS policy may need updating):', notificationError);
-                      // Continue anyway - the challenge is still conceptually sent
-                    }
+                      // Create notifications for all challenged friends with workout details
+                      const notificationPromises = selectedFriends.map(friend =>
+                        notificationService.createNotification({
+                          user_id: friend.id,
+                          type: 'workout_challenge',
+                          title: 'Workout Challenge',
+                          message: `${userProfile?.first_name || 'Someone'} ${userProfile?.last_name || ''} challenged you to a ${workoutType} workout competition!`,
+                          data: {
+                            challenger_id: currentUser.id,
+                            challenger_name: `${userProfile?.first_name} ${userProfile?.last_name}`,
+                            challenger_username: userProfile?.username,
+                            challenge_type: 'workout_challenge',
+                            workout_type: workoutType,
+                            workout_time: workoutTime,
+                            workout_duration: workoutDuration,
+                            workout_place: workoutPlace || null,
+                            workout_note: workoutNote || null
+                          },
+                          read: false
+                        }).catch(err => {
+                          console.warn(`⚠️ Could not create notification for ${friend.first_name}:`, err);
+                          return null;
+                        })
+                      );
+                      
+                      await Promise.all(notificationPromises);
 
-                    // TODO: Implement workout challenge functionality
-                    // This will create a workout challenge in the database
-                    // - Create a workout_challenges table with fields:
-                    //   - id, challenger_id, challenged_id, workout_type, challenge_date, 
-                    //     status (pending/accepted/declined/completed), winner_id
-                    // - Track workout metrics for both users
-                    // - Determine winner based on performance metrics
-                    // - Award points/badges to the winner
-                    
-                    toast({
-                      title: "Challenge Sent!",
-                      description: `Workout challenge sent to ${selectedFriend.first_name} ${selectedFriend.last_name}.`,
-                    });
-                    setShowChallengeModal(false);
-                    setSelectedFriend(null);
-                    setFriendSearchQuery("");
-                  } catch (error: any) {
-                    console.error('❌ Error sending challenge:', error);
-                    toast({
-                      title: "Error",
-                      description: error.message || "Failed to send challenge. Please try again.",
-                      variant: "destructive",
-                    });
+                      // TODO: Implement workout challenge functionality
+                      // This will create a workout challenge in the database
+                      // - Create a workout_challenges table with fields:
+                      //   - id, challenger_id, challenged_id, workout_type, challenge_date, 
+                      //     status (pending/accepted/declined/completed), winner_id
+                      // - Track workout metrics for both users
+                      // - Determine winner based on performance metrics
+                      // - Award points/badges to the winner
+                      
+                      const friendNames = selectedFriends.length === 1
+                        ? `${selectedFriends[0].first_name} ${selectedFriends[0].last_name}`
+                        : `${selectedFriends.length} friends`;
+                      
+                      toast({
+                        title: "Challenges Sent!",
+                        description: `Workout challenge sent to ${friendNames}.`,
+                      });
+                      setShowChallengeModal(false);
+                      setChallengeStep(1);
+                      setSelectedFriends([]);
+                      setFriendSearchQuery("");
+                      setWorkoutType("");
+                      setWorkoutTime("");
+                      setWorkoutDuration("");
+                      setWorkoutPlace("");
+                      setWorkoutNote("");
+                    } catch (error: any) {
+                      console.error('❌ Error sending challenge:', error);
+                      toast({
+                        title: "Error",
+                        description: error.message || "Failed to send challenge. Please try again.",
+                        variant: "destructive",
+                      });
+                    }
                   }
-                }
-              }}
-            >
-              <Zap className="w-4 h-4 mr-2" />
-              Send Challenge
-            </Button>
+                }}
+              >
+                <Zap className="w-4 h-4 mr-2" />
+                Send Challenge
+              </Button>
+            </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
