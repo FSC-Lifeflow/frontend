@@ -320,12 +320,16 @@ export const authService = {
    */
   async updateUserProfile(userId: string, updates: Partial<User>) {
     try {
-      console.log('🔧 updateUserProfile called with:', updates);
+      console.log('🔧 ===== authService.updateUserProfile =====');
+      console.log('🔧 User ID:', userId);
+      console.log('🔧 Updates object:', updates);
       console.log('🔧 social_privacy in updates:', updates.social_privacy);
       console.log('🔧 social_privacy type:', typeof updates.social_privacy);
       console.log('🔧 activity_sharing in updates:', updates.activity_sharing);
       console.log('🔧 activity_sharing type:', typeof updates.activity_sharing);
+      console.log('🔧 Timestamp:', new Date().toISOString());
       
+      console.log('📡 Sending update to Supabase...');
       const { data, error } = await supabase
         .from('users')
         .update(updates)
@@ -333,16 +337,24 @@ export const authService = {
         .select();
 
       if (error) {
+        console.error('❌ ===== SUPABASE UPDATE ERROR =====');
         console.error('❌ Failed to update user profile:', error);
         console.error('❌ Error code:', error.code);
         console.error('❌ Error message:', error.message);
         console.error('❌ Error details:', error.details);
+        console.error('❌ Error hint:', error.hint);
+        console.error('❌ Full error object:', JSON.stringify(error, null, 2));
         throw error;
       }
       
-      console.log('✅ Profile update successful');
+      console.log('✅ ===== PROFILE UPDATE SUCCESSFUL =====');
       console.log('✅ Updated data:', data);
+      console.log('✅ Number of rows updated:', data?.length || 0);
+      if (data && data.length > 0) {
+        console.log('✅ Updated activity_sharing value:', data[0].activity_sharing);
+      }
     } catch (error) {
+      console.error('❌ Exception in updateUserProfile:', error);
       throw error;
     }
   },

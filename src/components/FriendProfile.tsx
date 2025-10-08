@@ -94,6 +94,11 @@ export default function FriendProfile({ friendId, onBack }: FriendProfileProps) 
         setIsFriend(!!friendshipData);
 
         const data = await userService.getFriendProfile(friendId);
+        console.log('👤 Loaded friend profile:', {
+          name: `${data?.first_name} ${data?.last_name}`,
+          activity_sharing: data?.activity_sharing,
+          has_fitness_data: !!(data?.fitness_level || data?.primary_goals || data?.exercise_preferences)
+        });
         setProfileData(data);
       } catch (error) {
         console.error('Failed to fetch friend profile:', error);
@@ -315,7 +320,15 @@ export default function FriendProfile({ friendId, onBack }: FriendProfileProps) 
           {/* Fitness Information */}
           <WellnessCard className="mb-6">
             <h2 className="text-xl font-semibold mb-4">Fitness Profile</h2>
-            {(profileData.activity_sharing ?? true) === false ? (
+            {(() => {
+              const isPrivate = (profileData.activity_sharing ?? true) === false;
+              console.log('🔒 Privacy check:', {
+                activity_sharing: profileData.activity_sharing,
+                isPrivate,
+                showing: isPrivate ? 'privacy message' : 'fitness data'
+              });
+              return isPrivate;
+            })() ? (
               <div className="text-center py-8">
                 <div className="bg-muted/50 rounded-lg p-6 border-2 border-dashed border-muted-foreground/20">
                   <Users className="h-12 w-12 mx-auto mb-3 text-muted-foreground/40" />

@@ -509,18 +509,35 @@ export default function Profile() {
    * Handles immediate saving of activity sharing setting when toggled
    */
   const handleActivitySharingChange = async (newValue: boolean) => {
-    if (!userId) return;
+    if (!userId) {
+      console.error('🚫 Cannot update activity sharing: No userId');
+      return;
+    }
+
+    console.log('🔄 ===== ACTIVITY SHARING TOGGLE =====');
+    console.log('🔄 Previous value:', profileData.activitySharing);
+    console.log('🔄 New value:', newValue);
+    console.log('🔄 User ID:', userId);
+    console.log('🔄 Timestamp:', new Date().toISOString());
 
     try {
-      console.log('💾 Auto-saving activity sharing to:', newValue);
+      console.log('💾 Starting activity sharing update...');
       
       // Save to localStorage as backup (temporary until DB is migrated)
       localStorage.setItem(`activity_sharing_${userId}`, String(newValue));
+      console.log('💾 Saved to localStorage as backup');
+      
+      console.log('📡 Calling authService.updateUserProfile with:', {
+        userId,
+        activity_sharing: newValue
+      });
       
       await authService.updateUserProfile(userId, {
         activity_sharing: newValue,
       });
 
+      console.log('✅ Activity sharing updated successfully in database');
+      
       toast({
         title: "Activity Sharing Updated",
         description: `Activity sharing ${newValue ? 'enabled' : 'disabled'}`,
@@ -528,7 +545,10 @@ export default function Profile() {
       
       // Clear localStorage since DB save succeeded
       localStorage.removeItem(`activity_sharing_${userId}`);
+      console.log('🧹 Cleared localStorage backup');
+      console.log('🔄 ===== UPDATE COMPLETE =====');
     } catch (error) {
+      console.error('❌ ===== ACTIVITY SHARING UPDATE FAILED =====');
       console.error('❌ Failed to update activity sharing:', error);
       console.error('❌ Full error object:', JSON.stringify(error, null, 2));
       
@@ -736,7 +756,12 @@ export default function Profile() {
                       </div>
                       <Switch
                         checked={profileData.activitySharing}
-                        onCheckedChange={(checked) => handleInputChange('activitySharing', checked)}
+                        onCheckedChange={(checked) => {
+                          // Update state immediately for UI responsiveness
+                          handleInputChange('activitySharing', checked);
+                          // Save to database immediately
+                          handleActivitySharingChange(checked);
+                        }}
                       />
                     </div>
                     

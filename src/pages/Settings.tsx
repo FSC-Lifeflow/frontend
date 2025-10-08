@@ -14,13 +14,19 @@ export default function Settings() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [socialPrivacy, setSocialPrivacy] = useState(true);
+  const [activitySharing, setActivitySharing] = useState(true);
   const [loading, setLoading] = useState(true);
 
-  // Load user's current social privacy setting
+  // Load user's current settings
   useEffect(() => {
     const loadUserSettings = async () => {
       if (user) {
         setSocialPrivacy(user.social_privacy ?? true);
+        setActivitySharing(user.activity_sharing ?? true);
+        console.log('📥 Loaded user settings:', {
+          social_privacy: user.social_privacy,
+          activity_sharing: user.activity_sharing
+        });
         setLoading(false);
       }
     };
@@ -52,6 +58,49 @@ export default function Settings() {
       
       // Revert the switch state on error
       setSocialPrivacy(!newValue);
+    }
+  };
+
+  // Handle activity sharing toggle with auto-save
+  const handleActivitySharingChange = async (newValue: boolean) => {
+    if (!user?.id) {
+      console.error('🚫 Cannot update activity sharing: No user ID');
+      return;
+    }
+
+    console.log('🔄 ===== ACTIVITY SHARING TOGGLE (Settings Page) =====');
+    console.log('🔄 Previous value:', activitySharing);
+    console.log('🔄 New value:', newValue);
+    console.log('🔄 User ID:', user.id);
+    console.log('🔄 Timestamp:', new Date().toISOString());
+
+    try {
+      console.log('💾 Updating activity sharing state...');
+      setActivitySharing(newValue);
+      
+      console.log('📡 Calling authService.updateUserProfile...');
+      await authService.updateUserProfile(user.id, {
+        activity_sharing: newValue,
+      });
+
+      console.log('✅ Activity sharing updated successfully');
+      toast({
+        title: "Activity Sharing Updated",
+        description: `Activity sharing ${newValue ? 'enabled' : 'disabled'}`,
+      });
+      console.log('🔄 ===== UPDATE COMPLETE =====');
+    } catch (error) {
+      console.error('❌ ===== ACTIVITY SHARING UPDATE FAILED =====');
+      console.error('❌ Failed to update activity sharing:', error);
+      console.error('❌ Full error:', JSON.stringify(error, null, 2));
+      toast({
+        title: "Error",
+        description: "Failed to update activity sharing. Please try again.",
+        variant: "destructive",
+      });
+      
+      // Revert the switch state on error
+      setActivitySharing(!newValue);
     }
   };
 
@@ -120,7 +169,11 @@ export default function Settings() {
                     <Label>Activity Sharing</Label>
                     <p className="text-sm text-muted-foreground">Share workout data with friends</p>
                   </div>
-                  <Switch />
+                  <Switch 
+                    checked={activitySharing}
+                    onCheckedChange={handleActivitySharingChange}
+                    disabled={loading}
+                  />
                 </div>
                 <Button variant="zen" className="w-full">
                   Manage Data & Privacy
