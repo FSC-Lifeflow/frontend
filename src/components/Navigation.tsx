@@ -49,7 +49,9 @@ export function Navigation() {
         {/* Mobile Header */}
         <header className="fixed top-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-b pt-[env(safe-area-inset-top)]">
           <div className="flex items-center justify-between p-4">
-            <h1 className="text-xl font-bold text-primary">LifeFlow</h1>
+            <Link to="/" className="text-xl font-bold text-primary hover:opacity-80 transition-opacity">
+              LifeFlow
+            </Link>
             <div className="flex items-center gap-2">
               <Button
                 variant="wellness"
@@ -162,7 +164,9 @@ export function Navigation() {
       {/* Desktop Sidebar */}
       <nav className="fixed left-0 top-0 z-40 h-full w-64 bg-background border-r">
         <div className="p-6">
-          <h1 className="text-2xl font-bold text-primary mb-8">LifeFlow</h1>
+          <Link to="/" className="text-2xl font-bold text-primary mb-8 block hover:opacity-80 transition-opacity">
+            LifeFlow
+          </Link>
           
           <div className="space-y-2 mb-8">
             {navigationItems.map((item) => {

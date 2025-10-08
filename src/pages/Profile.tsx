@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 // Custom layout and card components for consistent UI
 import { WellnessLayout } from "@/components/WellnessLayout";
 import { WellnessCard } from "@/components/WellnessCard";
+import FriendProfile from "@/components/FriendProfile";
 // UI components from shadcn/ui
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +22,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { User, Save, Bell, X, Check, UserX, Loader2, Users, Ban, UserMinus } from "lucide-react";
+import { User, Upload, Save, Bell, X, Check, UserX, Loader2, Users, Ban, UserMinus, ChevronDown, ChevronUp, Calendar, Clock, MapPin, FileText } from "lucide-react";
 // Custom hooks and services
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -43,12 +45,12 @@ type FriendWithAvatar = SearchUser & {
 
 /**
  * Profile component - Displays and allows editing of user profile information
- * Handles personal details, fitness preferences, and privacy settings
  */
 export default function Profile() {
   const { user } = useAuth();
   const { unreadCount, refreshUnreadCount } = useNotifications();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [userId, setUserId] = useState<string | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<NotificationWithRead[]>([]);
@@ -57,6 +59,8 @@ export default function Profile() {
   const [loadingFriends, setLoadingFriends] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
   const [showBlockedUsers, setShowBlockedUsers] = useState(false);
+  const [expandedNotifications, setExpandedNotifications] = useState<Set<string>>(new Set());
+  const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
   const [blockedUsers, setBlockedUsers] = useState<Array<{
     id: string;
     first_name: string;
@@ -79,7 +83,8 @@ export default function Profile() {
     sessionDuration: "",
     equipmentAccess: "",
     physicalLimitations: "",
-    socialPrivacy: true
+    socialPrivacy: true,
+    activitySharing: true
   });
 
   // Fetch user data on component mount
@@ -94,6 +99,12 @@ export default function Profile() {
         console.log('🔍 social_privacy value:', user.social_privacy);
         console.log('🔍 social_privacy type:', typeof user.social_privacy);
         
+        // Check localStorage for activity_sharing override (temporary until DB is migrated)
+        const localActivitySharing = localStorage.getItem(`activity_sharing_${user.id}`);
+        const activitySharingValue = localActivitySharing !== null 
+          ? localActivitySharing === 'true'
+          : (user.activity_sharing ?? true);
+        
         // Update profile data with user information
         setProfileData(prev => ({
           ...prev,
@@ -107,9 +118,13 @@ export default function Profile() {
           equipmentAccess: user.equipment_access || "",
           physicalLimitations: user.physical_limitations || "",
           socialPrivacy: user.social_privacy ?? true, // Use nullish coalescing to default to true only if null/undefined
+          activitySharing: activitySharingValue,
         }));
         
         console.log('🔍 Set socialPrivacy to:', user.social_privacy ?? true);
+        console.log('🔍 Set activitySharing to:', activitySharingValue);
+        console.log('🔍 activity_sharing from DB:', user.activity_sharing);
+        console.log('🔍 activity_sharing from localStorage:', localActivitySharing);
       }
     };
 
@@ -168,13 +183,13 @@ export default function Profile() {
         setNotifications(fetchedNotifications);
         
         // Mark unread notifications as read
-        const unreadNotifications = fetchedNotifications.filter(n => !n.is_read);
+        const unreadNotifications = fetchedNotifications.filter(n => !n.read);
         if (unreadNotifications.length > 0) {
           await Promise.all(
             unreadNotifications.map(n => notificationService.markAsRead(n.id))
           );
           // Update local state to reflect read status
-          setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+          setNotifications(prev => prev.map(n => ({ ...n, read: true })));
           await refreshUnreadCount(); // Refresh the global unread count
         }
       } catch (error) {
@@ -189,13 +204,13 @@ export default function Profile() {
       }
     } else {
       // Mark any unread notifications as read when opening the modal
-      const unreadNotifications = notifications.filter(n => !n.is_read);
+      const unreadNotifications = notifications.filter(n => !n.read);
       if (unreadNotifications.length > 0) {
         try {
           await Promise.all(
             unreadNotifications.map(n => notificationService.markAsRead(n.id))
           );
-          setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+          setNotifications(prev => prev.map(n => ({ ...n, read: true })));
           await refreshUnreadCount(); // Refresh the global unread count
         } catch (error) {
           console.error('Failed to mark notifications as read:', error);
@@ -325,6 +340,40 @@ export default function Profile() {
     }
   };
 
+  const handlePostNotificationClick = async (notification: Notification) => {
+    // Mark notification as read FIRST if not already
+    if (!notification.read) {
+      try {
+        await notificationService.markAsRead(notification.id);
+        setNotifications(prev => prev.map(n => 
+          n.id === notification.id ? { ...n, read: true } : n
+        ));
+        await refreshUnreadCount();
+      } catch (error) {
+        console.error('Failed to mark notification as read:', error);
+      }
+    }
+    
+    // Close the notifications modal
+    setShowNotifications(false);
+    
+    // For comment replies, open single post view
+    // For likes and comments, open My Posts
+    const isCommentReply = notification.type === 'comment_reply';
+    
+    navigate('/social', { 
+      state: isCommentReply 
+        ? { 
+            viewSinglePost: true,
+            postId: notification.data?.post_id 
+          }
+        : { 
+            openMyPosts: true,
+            highlightPostId: notification.data?.post_id 
+          } 
+    });
+  };
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "friend_request":
@@ -333,6 +382,16 @@ export default function Profile() {
         return "🏆";
       case "workout_reminder":
         return "💪";
+      case "workout_invitation":
+        return "📅";
+      case "workout_challenge":
+        return "⚡";
+      case "post_like":
+        return "❤️";
+      case "post_comment":
+        return "💬";
+      case "comment_reply":
+        return "↩️";
       case "social":
         return "❤️";
       default:
@@ -382,6 +441,7 @@ export default function Profile() {
         equipment_access: profileData.equipmentAccess,
         physical_limitations: profileData.physicalLimitations,
         social_privacy: profileData.socialPrivacy,
+        activity_sharing: profileData.activitySharing,
       };
       
       console.log('💾 Full update object:', updateData);
@@ -417,6 +477,13 @@ export default function Profile() {
       // Auto-save social privacy setting immediately when toggled
       handleSocialPrivacyChange(value as boolean);
     }
+    if (field === 'activitySharing') {
+      console.log('🔄 Activity sharing switch toggled to:', value);
+      console.log('🔄 Value type:', typeof value);
+      
+      // Auto-save activity sharing setting immediately when toggled
+      handleActivitySharingChange(value as boolean);
+    }
     setProfileData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -447,6 +514,83 @@ export default function Profile() {
       
       // Revert the switch state on error
       setProfileData(prev => ({ ...prev, socialPrivacy: !newValue }));
+    }
+  };
+
+  /**
+   * Handles immediate saving of activity sharing setting when toggled
+   */
+  const handleActivitySharingChange = async (newValue: boolean) => {
+    if (!userId) {
+      console.error('🚫 Cannot update activity sharing: No userId');
+      return;
+    }
+
+    console.log('🔄 ===== ACTIVITY SHARING TOGGLE =====');
+    console.log('🔄 Previous value:', profileData.activitySharing);
+    console.log('🔄 New value:', newValue);
+    console.log('🔄 User ID:', userId);
+    console.log('🔄 Timestamp:', new Date().toISOString());
+
+    try {
+      console.log('💾 Starting activity sharing update...');
+      
+      // Save to localStorage as backup (temporary until DB is migrated)
+      localStorage.setItem(`activity_sharing_${userId}`, String(newValue));
+      console.log('💾 Saved to localStorage as backup');
+      
+      console.log('📡 Calling authService.updateUserProfile with:', {
+        userId,
+        activity_sharing: newValue
+      });
+      
+      await authService.updateUserProfile(userId, {
+        activity_sharing: newValue,
+      });
+
+      console.log('✅ Activity sharing updated successfully in database');
+      
+      toast({
+        title: "Activity Sharing Updated",
+        description: `Activity sharing ${newValue ? 'enabled' : 'disabled'}`,
+      });
+      
+      // Clear localStorage since DB save succeeded
+      localStorage.removeItem(`activity_sharing_${userId}`);
+      console.log('🧹 Cleared localStorage backup');
+      console.log('🔄 ===== UPDATE COMPLETE =====');
+    } catch (error) {
+      console.error('❌ ===== ACTIVITY SHARING UPDATE FAILED =====');
+      console.error('❌ Failed to update activity sharing:', error);
+      console.error('❌ Full error object:', JSON.stringify(error, null, 2));
+      
+      // Check if it's a column not found error (database not migrated yet)
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorCode = (error as any)?.code;
+      
+      console.log('❌ Error message:', errorMessage);
+      console.log('❌ Error code:', errorCode);
+      
+      if (errorMessage.includes('column') && errorMessage.includes('does not exist')) {
+        toast({
+          title: "Setting Saved Locally",
+          description: "Activity sharing preference saved. Add database column to persist permanently.",
+          variant: "default",
+        });
+        // Keep the new value in state and localStorage
+        return;
+      }
+      
+      // Show the actual error message for debugging
+      toast({
+        title: "Error Updating Activity Sharing",
+        description: errorMessage || "Failed to update activity sharing setting. Check console for details.",
+        variant: "destructive",
+      });
+      
+      // Revert the switch state and localStorage on error
+      localStorage.removeItem(`activity_sharing_${userId}`);
+      setProfileData(prev => ({ ...prev, activitySharing: !newValue }));
     }
   };
 
@@ -496,6 +640,26 @@ export default function Profile() {
       });
     }
   };
+
+  // Handle clicking on a friend to view their profile
+  const handleFriendClick = (friendId: string) => {
+    setSelectedFriendId(friendId);
+  };
+
+  // Handle going back from friend profile to main profile
+  const handleBackFromFriendProfile = () => {
+    setSelectedFriendId(null);
+  };
+
+  // If viewing a friend's profile, show FriendProfile component
+  if (selectedFriendId) {
+    return (
+      <FriendProfile 
+        friendId={selectedFriendId} 
+        onBack={handleBackFromFriendProfile}
+      />
+    );
+  }
 
   // Render the profile page
   return (
@@ -583,6 +747,22 @@ export default function Profile() {
                       <Switch
                         checked={profileData.socialPrivacy}
                         onCheckedChange={(checked) => handleInputChange('socialPrivacy', checked)}
+                      />
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Activity Sharing</Label>
+                        <p className="text-sm text-muted-foreground">Share fitness goals and activity with friends</p>
+                      </div>
+                      <Switch
+                        checked={profileData.activitySharing}
+                        onCheckedChange={(checked) => {
+                          // Update state immediately for UI responsiveness
+                          handleInputChange('activitySharing', checked);
+                          // Save to database immediately
+                          handleActivitySharingChange(checked);
+                        }}
                       />
                     </div>
                     
@@ -747,10 +927,13 @@ export default function Profile() {
                 ) : friends.length > 0 ? (
                   <div className="space-y-4">
                     {friends.map((friend) => (
-                      <div key={friend.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="flex items-center space-x-3">
+                      <div key={friend.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                        <div 
+                          className="flex items-center space-x-3 flex-1 cursor-pointer"
+                          onClick={() => handleFriendClick(friend.id)}
+                        >
                           <Avatar className="h-10 w-10">
-                            <AvatarImage src={friend.avatar_url} alt={friend.first_name} />
+                            <AvatarImage src="" alt={friend.first_name} />
                             <AvatarFallback>
                               {friend.first_name?.[0]}{friend.last_name?.[0]}
                             </AvatarFallback>
@@ -763,7 +946,10 @@ export default function Profile() {
                         <Button 
                           variant="outline" 
                           size="sm"
-                          onClick={() => handleUnfriend(friend.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleUnfriend(friend.id);
+                          }}
                           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                         >
                           <UserX className="h-4 w-4 mr-2" />
@@ -809,8 +995,17 @@ export default function Profile() {
                     <div
                       key={notification.id}
                       className={`p-3 rounded-lg border ${
-                        notification.is_read ? 'bg-muted/30' : 'bg-primary/5 border-primary/20'
+                        notification.read ? 'bg-muted/30' : 'bg-primary/5 border-primary/20'
+                      } ${
+                        (notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply') 
+                          ? 'cursor-pointer hover:bg-muted/50 transition-colors' 
+                          : ''
                       }`}
+                      onClick={() => {
+                        if (notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply') {
+                          handlePostNotificationClick(notification);
+                        }
+                      }}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-start gap-3 flex-1">
@@ -823,6 +1018,11 @@ export default function Profile() {
                             <p className="text-xs text-muted-foreground mt-2">
                               {formatTimestamp(notification.created_at)}
                             </p>
+                            {(notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply') && (
+                              <p className="text-xs text-primary mt-1">
+                                Click to view post →
+                              </p>
+                            )}
                             
                             {/* Friend Request Actions */}
                             {notification.type === 'friend_request' && notification.data?.friend_request_id && (
@@ -847,7 +1047,6 @@ export default function Profile() {
                                 </Button>
                                 <Button
                                   size="sm"
-                                  variant="outline"
                                   onClick={() => handleBlockUser(notification.id, notification.data?.sender_id)}
                                   className="h-7 px-3 text-xs text-destructive hover:text-destructive flex-1 sm:flex-none"
                                 >
@@ -855,6 +1054,192 @@ export default function Profile() {
                                   Block
                                 </Button>
                               </div>
+                            )}
+
+                            {/* Workout Invitation Actions */}
+                            {notification.type === 'workout_invitation' && (
+                              <>
+                                {/* Expandable Details Button */}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setExpandedNotifications(prev => {
+                                      const newSet = new Set(prev);
+                                      if (newSet.has(notification.id)) {
+                                        newSet.delete(notification.id);
+                                      } else {
+                                        newSet.add(notification.id);
+                                      }
+                                      return newSet;
+                                    });
+                                  }}
+                                  className="h-7 px-2 text-xs mt-2 w-full justify-between"
+                                >
+                                  <span>View Workout Details</span>
+                                  {expandedNotifications.has(notification.id) ? (
+                                    <ChevronUp className="w-4 h-4" />
+                                  ) : (
+                                    <ChevronDown className="w-4 h-4" />
+                                  )}
+                                </Button>
+
+                                {/* Expanded Workout Details */}
+                                {expandedNotifications.has(notification.id) && notification.data && (
+                                  <div className="mt-2 p-3 bg-muted/50 rounded-md space-y-2 text-xs">
+                                    <div className="flex items-center gap-2">
+                                      <FileText className="w-3 h-3 text-muted-foreground" />
+                                      <span className="font-medium">Type:</span>
+                                      <span className="capitalize">{notification.data.workout_type}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Calendar className="w-3 h-3 text-muted-foreground" />
+                                      <span className="font-medium">When:</span>
+                                      <span>{new Date(notification.data.workout_time).toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Clock className="w-3 h-3 text-muted-foreground" />
+                                      <span className="font-medium">Duration:</span>
+                                      <span>{notification.data.workout_duration} min</span>
+                                    </div>
+                                    {notification.data.workout_place && (
+                                      <div className="flex items-center gap-2">
+                                        <MapPin className="w-3 h-3 text-muted-foreground" />
+                                        <span className="font-medium">Place:</span>
+                                        <span>{notification.data.workout_place}</span>
+                                      </div>
+                                    )}
+                                    {notification.data.workout_note && (
+                                      <div className="flex items-start gap-2">
+                                        <FileText className="w-3 h-3 text-muted-foreground mt-0.5" />
+                                        <span className="font-medium">Note:</span>
+                                        <span className="flex-1">{notification.data.workout_note}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                <div className="flex flex-wrap gap-2 mt-3">
+                                  <Button
+                                    size="sm"
+                                    variant="zen"
+                                    onClick={async () => {
+                                      // TODO: Implement accept invitation - add to calendar
+                                      toast({
+                                        title: "Coming Soon",
+                                        description: "Calendar integration is not yet implemented.",
+                                      });
+                                      await handleRemoveNotification(notification.id);
+                                    }}
+                                    className="h-7 px-3 text-xs flex-1 sm:flex-none"
+                                  >
+                                    <Check className="w-3 h-3 mr-1" />
+                                    Accept
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleRemoveNotification(notification.id)}
+                                    className="h-7 px-3 text-xs flex-1 sm:flex-none"
+                                  >
+                                    <X className="w-3 h-3 mr-1" />
+                                    Decline
+                                  </Button>
+                                </div>
+                              </>
+                            )}
+
+                            {/* Workout Challenge Actions */}
+                            {notification.type === 'workout_challenge' && (
+                              <>
+                                {/* Expandable Details Button */}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setExpandedNotifications(prev => {
+                                      const newSet = new Set(prev);
+                                      if (newSet.has(notification.id)) {
+                                        newSet.delete(notification.id);
+                                      } else {
+                                        newSet.add(notification.id);
+                                      }
+                                      return newSet;
+                                    });
+                                  }}
+                                  className="h-7 px-2 text-xs mt-2 w-full justify-between"
+                                >
+                                  <span>View Challenge Details</span>
+                                  {expandedNotifications.has(notification.id) ? (
+                                    <ChevronUp className="w-4 h-4" />
+                                  ) : (
+                                    <ChevronDown className="w-4 h-4" />
+                                  )}
+                                </Button>
+
+                                {/* Expanded Challenge Details */}
+                                {expandedNotifications.has(notification.id) && notification.data && (
+                                  <div className="mt-2 p-3 bg-muted/50 rounded-md space-y-2 text-xs">
+                                    <div className="flex items-center gap-2">
+                                      <FileText className="w-3 h-3 text-muted-foreground" />
+                                      <span className="font-medium">Type:</span>
+                                      <span className="capitalize">{notification.data.workout_type}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Calendar className="w-3 h-3 text-muted-foreground" />
+                                      <span className="font-medium">When:</span>
+                                      <span>{new Date(notification.data.workout_time).toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Clock className="w-3 h-3 text-muted-foreground" />
+                                      <span className="font-medium">Duration:</span>
+                                      <span>{notification.data.workout_duration} min</span>
+                                    </div>
+                                    {notification.data.workout_place && (
+                                      <div className="flex items-center gap-2">
+                                        <MapPin className="w-3 h-3 text-muted-foreground" />
+                                        <span className="font-medium">Place:</span>
+                                        <span>{notification.data.workout_place}</span>
+                                      </div>
+                                    )}
+                                    {notification.data.workout_note && (
+                                      <div className="flex items-start gap-2">
+                                        <FileText className="w-3 h-3 text-muted-foreground mt-0.5" />
+                                        <span className="font-medium">Challenge Note:</span>
+                                        <span className="flex-1">{notification.data.workout_note}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                <div className="flex flex-wrap gap-2 mt-3">
+                                  <Button
+                                    size="sm"
+                                    variant="motivation"
+                                    onClick={async () => {
+                                      // TODO: Implement accept challenge - add to calendar
+                                      toast({
+                                        title: "Coming Soon",
+                                        description: "Calendar integration is not yet implemented.",
+                                      });
+                                      await handleRemoveNotification(notification.id);
+                                    }}
+                                    className="h-7 px-3 text-xs flex-1 sm:flex-none"
+                                  >
+                                    <Check className="w-3 h-3 mr-1" />
+                                    Accept
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleRemoveNotification(notification.id)}
+                                    className="h-7 px-3 text-xs flex-1 sm:flex-none"
+                                  >
+                                    <X className="w-3 h-3 mr-1" />
+                                    Decline
+                                  </Button>
+                                </div>
+                              </>
                             )}
                           </div>
                         </div>

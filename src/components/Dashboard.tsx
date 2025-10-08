@@ -1,9 +1,8 @@
-import { WellnessLayout } from "../components/WellnessLayout";
-import { WellnessCard } from "../components/WellnessCard";
-import { CaloriesChart } from "../components/CaloriesChart";
-import { GoogleCalendar } from "../components/GoogleCalendar";
-import { FitbitData } from "../components/FitbitData";
-import { ManualWorkoutDialog } from "../components/ManualWorkoutDialog";
+import { WellnessLayout } from "./WellnessLayout";
+import { WellnessCard } from "./WellnessCard";
+import { CaloriesChart } from "./CaloriesChart";
+import { GoogleCalendar } from "./GoogleCalendar";
+import { FitbitData } from "./FitbitData";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +17,7 @@ import {
   ExternalLink
 } from "lucide-react";
 
-function Dashboard() {
+export function Dashboard() {
   
   const { user } = useAuth();
 
@@ -77,8 +76,6 @@ function Dashboard() {
 
               <FitbitData />
             </WellnessCard>
-
-            {/* Google Calendar Integration */}
             <WellnessCard className="animate-slide-up">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-semibold flex items-center gap-2">
@@ -144,14 +141,10 @@ function Dashboard() {
             <WellnessCard className="animate-fade-in">
               <h3 className="font-semibold mb-4">Quick Actions</h3>
               <div className="space-y-2">
-                <ManualWorkoutDialog
-                  trigger={
-                    <Button variant="zen" className="w-full justify-start" size="sm">
-                      <Target className="w-4 h-4 mr-2" />
-                      Log Manual Activity
-                    </Button>
-                  }
-                />
+                <Button variant="zen" className="w-full justify-start" size="sm">
+                  <Target className="w-4 h-4 mr-2" />
+                  Log Manual Activity
+                </Button>
                 <Button variant="zen" className="w-full justify-start" size="sm">
                   <Heart className="w-4 h-4 mr-2" />
                   Update Health Data
@@ -166,9 +159,6 @@ function Dashboard() {
         </div>
 
       </div>
-
     </WellnessLayout>
   );
 }
-
-export default Dashboard;

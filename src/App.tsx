@@ -78,6 +78,8 @@ const App = () => {
             <AuthProvider>
               <NotificationProvider>
                 <AppContent />
+                <Toaster />
+                <Sonner />
               </NotificationProvider>
             </AuthProvider>
           </BrowserRouter>

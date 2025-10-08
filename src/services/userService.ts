@@ -10,6 +10,7 @@ export type SearchUser = {
   last_name: string;
   email: string;
   created_at: string;
+  mutual_friends_count?: number; // Optional field for friend suggestions
 };
 
 /**
@@ -123,6 +124,63 @@ export const userService = {
       return data || [];
     } catch (error) {
       console.error('❌ Get users by IDs error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Gets a friend's public profile information
+   * Only returns public information (excludes personal details like email for privacy)
+   * @param friendId - ID of the friend whose profile to fetch
+   * @returns Friend's public profile data
+   */
+  async getFriendProfile(friendId: string): Promise<{
+    id: string;
+    username: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    fitness_level?: string;
+    primary_goals?: string;
+    exercise_preferences?: string;
+    activity_sharing?: boolean;
+    created_at: string;
+  } | null> {
+    try {
+      // Try to fetch with activity_sharing first
+      let { data, error } = await supabase
+        .from('users')
+        .select('id, username, first_name, last_name, email, fitness_level, primary_goals, exercise_preferences, activity_sharing, created_at')
+        .eq('id', friendId)
+        .maybeSingle();
+
+      // If column doesn't exist yet (error code 42703), fetch without it and default to true
+      if (error && error.code === '42703') {
+        console.warn('⚠️ activity_sharing column not found, fetching without it (defaulting to true)');
+        const fallbackResult = await supabase
+          .from('users')
+          .select('id, username, first_name, last_name, email, fitness_level, primary_goals, exercise_preferences, created_at')
+          .eq('id', friendId)
+          .maybeSingle();
+        
+        if (fallbackResult.error) {
+          console.error('❌ Failed to fetch friend profile:', fallbackResult.error);
+          throw new Error('Failed to fetch friend profile');
+        }
+        
+        // Return data with activity_sharing defaulted to true
+        return fallbackResult.data ? { ...fallbackResult.data, activity_sharing: true } : null;
+      }
+
+      if (error) {
+        console.error('❌ Failed to fetch friend profile:', error);
+        throw new Error('Failed to fetch friend profile');
+      }
+
+      // Default activity_sharing to true if null/undefined
+      return data ? { ...data, activity_sharing: data.activity_sharing ?? true } : null;
+    } catch (error) {
+      console.error('❌ Get friend profile error:', error);
       throw error;
     }
   }

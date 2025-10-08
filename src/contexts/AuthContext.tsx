@@ -15,6 +15,7 @@ type User = {
   email: string;
   created_at: string;
   social_privacy?: boolean;
+  activity_sharing?: boolean;
   avatar_url?: string;
 };
 
