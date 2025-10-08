@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { notificationService } from '@/services/notificationService';
 import { useAuth } from './AuthContext';
+import { supabase } from '@/lib/supabase';
 
 interface NotificationContextType {
   unreadCount: number;
@@ -30,15 +31,45 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    if (user) {
-      refreshUnreadCount();
-      
-      // Refresh count every 30 seconds when user is active
-      const interval = setInterval(refreshUnreadCount, 30000);
-      return () => clearInterval(interval);
-    } else {
+    if (!user) {
       setUnreadCount(0);
+      return;
     }
+
+    // Initial fetch
+    refreshUnreadCount();
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel(`notifications:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('📬 Real-time notification update:', payload);
+          
+          // Refresh the unread count whenever notifications change
+          refreshUnreadCount();
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Subscribed to real-time notifications');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Real-time subscription error');
+        }
+      });
+
+    // Cleanup subscription on unmount or user change
+    return () => {
+      console.log('🔌 Unsubscribing from real-time notifications');
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   return (
