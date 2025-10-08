@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 // Custom layout and card components for consistent UI
 import { WellnessLayout } from "@/components/WellnessLayout";
 import { WellnessCard } from "@/components/WellnessCard";
@@ -37,6 +38,7 @@ export default function Profile() {
   const { user } = useAuth();
   const { unreadCount, refreshUnreadCount } = useNotifications();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [userId, setUserId] = useState<string | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -326,6 +328,40 @@ export default function Profile() {
     }
   };
 
+  const handlePostNotificationClick = async (notification: Notification) => {
+    // Mark notification as read FIRST if not already
+    if (!notification.read) {
+      try {
+        await notificationService.markAsRead(notification.id);
+        setNotifications(prev => prev.map(n => 
+          n.id === notification.id ? { ...n, read: true } : n
+        ));
+        await refreshUnreadCount();
+      } catch (error) {
+        console.error('Failed to mark notification as read:', error);
+      }
+    }
+    
+    // Close the notifications modal
+    setShowNotifications(false);
+    
+    // For comment replies, open single post view
+    // For likes and comments, open My Posts
+    const isCommentReply = notification.type === 'comment_reply';
+    
+    navigate('/social', { 
+      state: isCommentReply 
+        ? { 
+            viewSinglePost: true,
+            postId: notification.data?.post_id 
+          }
+        : { 
+            openMyPosts: true,
+            highlightPostId: notification.data?.post_id 
+          } 
+    });
+  };
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "friend_request":
@@ -338,6 +374,12 @@ export default function Profile() {
         return "📅";
       case "workout_challenge":
         return "⚡";
+      case "post_like":
+        return "❤️";
+      case "post_comment":
+        return "💬";
+      case "comment_reply":
+        return "↩️";
       case "social":
         return "❤️";
       default:
@@ -928,7 +970,16 @@ export default function Profile() {
                       key={notification.id}
                       className={`p-3 rounded-lg border ${
                         notification.read ? 'bg-muted/30' : 'bg-primary/5 border-primary/20'
+                      } ${
+                        (notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply') 
+                          ? 'cursor-pointer hover:bg-muted/50 transition-colors' 
+                          : ''
                       }`}
+                      onClick={() => {
+                        if (notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply') {
+                          handlePostNotificationClick(notification);
+                        }
+                      }}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-start gap-3 flex-1">
@@ -941,6 +992,11 @@ export default function Profile() {
                             <p className="text-xs text-muted-foreground mt-2">
                               {formatTimestamp(notification.created_at)}
                             </p>
+                            {(notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply') && (
+                              <p className="text-xs text-primary mt-1">
+                                Click to view post →
+                              </p>
+                            )}
                             
                             {/* Friend Request Actions */}
                             {notification.type === 'friend_request' && notification.data?.friend_request_id && (

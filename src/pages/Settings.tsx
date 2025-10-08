@@ -90,7 +90,7 @@ export default function Settings() {
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>Progress Celebrations</Label>
-                    <p className="text-sm text-muted-foreground">Milestone achievements and streaks</p>
+                    <p className="text-sm text-muted-foreground">Milestone achievements and goals</p>
                   </div>
                   <Switch defaultChecked />
                 </div>

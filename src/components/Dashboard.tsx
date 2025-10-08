@@ -58,7 +58,7 @@ export function Dashboard() {
           </h1>
           <p className="text-muted-foreground flex items-center gap-2">
             <Sun className="w-4 h-4" />
-            Ready to make today count? You're 3 days into your streak! 🔥
+            Ready to make today count? Let's keep up the momentum! 💪
           </p>
         </div>
 
@@ -72,15 +72,10 @@ export function Dashboard() {
                   <Target className="w-5 h-5 text-primary" />
                   Today's Progress
                 </h2>
-                <Badge variant="secondary" className="bg-primary/10 text-primary">
-                  3 day streak
-                </Badge>
               </div>
 
               <FitbitData />
             </WellnessCard>
-
-            {/* Google Calendar Integration */}
             <WellnessCard className="animate-slide-up">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-semibold flex items-center gap-2">

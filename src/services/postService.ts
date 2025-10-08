@@ -17,6 +17,9 @@ export type UserPost = {
     username: string;
     email: string;
   };
+  likes_count?: number;
+  comments_count?: number;
+  is_liked_by_user?: boolean;
 };
 
 /**
@@ -160,10 +163,68 @@ export const postService = {
         console.error('⚠️ Failed to fetch user info:', usersError);
       }
 
-      // Combine posts with user info
+      // Get likes and comments counts for all posts
+      const postIds = posts.map(p => p.id);
+      
+      // Get likes data
+      const { data: likesData } = await supabase
+        .from('post_likes')
+        .select('post_id, user_id')
+        .in('post_id', postIds);
+
+      // Get comments with their IDs
+      const { data: commentsData } = await supabase
+        .from('post_comments')
+        .select('id, post_id')
+        .in('post_id', postIds);
+
+      // Get all replies for these comments
+      const commentIds = commentsData?.map(c => c.id) || [];
+      const { data: repliesData } = commentIds.length > 0 
+        ? await supabase
+            .from('comment_replies')
+            .select('comment_id')
+            .in('comment_id', commentIds)
+        : { data: [] };
+
+      // Build likes count map and check if user liked
+      const likesCountMap = new Map<string, number>();
+      const userLikesMap = new Set<string>();
+
+      likesData?.forEach(like => {
+        const count = likesCountMap.get(like.post_id) || 0;
+        likesCountMap.set(like.post_id, count + 1);
+        
+        if (like.user_id === currentUser.id) {
+          userLikesMap.add(like.post_id);
+        }
+      });
+
+      // Build comments count map (including replies)
+      const commentsCountMap = new Map<string, number>();
+      
+      // Count direct comments
+      commentsData?.forEach(comment => {
+        const count = commentsCountMap.get(comment.post_id) || 0;
+        commentsCountMap.set(comment.post_id, count + 1);
+      });
+
+      // Add replies to the count
+      repliesData?.forEach(reply => {
+        const comment = commentsData?.find(c => c.id === reply.comment_id);
+        if (comment) {
+          const count = commentsCountMap.get(comment.post_id) || 0;
+          commentsCountMap.set(comment.post_id, count + 1);
+        }
+      });
+
+      // Combine posts with user info, likes, and comments
       const postsWithUsers = posts.map(post => ({
         ...post,
-        user: users?.find(u => u.id === post.user_id)
+        user: users?.find(u => u.id === post.user_id),
+        likes_count: likesCountMap.get(post.id) || 0,
+        comments_count: commentsCountMap.get(post.id) || 0,
+        is_liked_by_user: userLikesMap.has(post.id)
       }));
 
       return postsWithUsers;
@@ -198,6 +259,10 @@ export const postService = {
         throw new Error('Failed to get posts');
       }
 
+      if (!posts || posts.length === 0) {
+        return [];
+      }
+
       // Get user info
       const { data: userInfo, error: userError } = await supabase
         .from('users')
@@ -209,9 +274,67 @@ export const postService = {
         console.error('⚠️ Failed to fetch user info:', userError);
       }
 
-      return (posts || []).map(post => ({
+      // Get likes and comments counts for all posts
+      const postIds = posts.map(p => p.id);
+      
+      // Get likes data
+      const { data: likesData } = await supabase
+        .from('post_likes')
+        .select('post_id, user_id')
+        .in('post_id', postIds);
+
+      // Get comments with their IDs
+      const { data: commentsData } = await supabase
+        .from('post_comments')
+        .select('id, post_id')
+        .in('post_id', postIds);
+
+      // Get all replies for these comments
+      const commentIds = commentsData?.map(c => c.id) || [];
+      const { data: repliesData } = commentIds.length > 0 
+        ? await supabase
+            .from('comment_replies')
+            .select('comment_id')
+            .in('comment_id', commentIds)
+        : { data: [] };
+
+      // Build likes count map and check if user liked
+      const likesCountMap = new Map<string, number>();
+      const userLikesMap = new Set<string>();
+
+      likesData?.forEach(like => {
+        const count = likesCountMap.get(like.post_id) || 0;
+        likesCountMap.set(like.post_id, count + 1);
+        
+        if (like.user_id === currentUser.id) {
+          userLikesMap.add(like.post_id);
+        }
+      });
+
+      // Build comments count map (including replies)
+      const commentsCountMap = new Map<string, number>();
+      
+      // Count direct comments
+      commentsData?.forEach(comment => {
+        const count = commentsCountMap.get(comment.post_id) || 0;
+        commentsCountMap.set(comment.post_id, count + 1);
+      });
+
+      // Add replies to the count
+      repliesData?.forEach(reply => {
+        const comment = commentsData?.find(c => c.id === reply.comment_id);
+        if (comment) {
+          const count = commentsCountMap.get(comment.post_id) || 0;
+          commentsCountMap.set(comment.post_id, count + 1);
+        }
+      });
+
+      return posts.map(post => ({
         ...post,
-        user: userInfo || undefined
+        user: userInfo || undefined,
+        likes_count: likesCountMap.get(post.id) || 0,
+        comments_count: commentsCountMap.get(post.id) || 0,
+        is_liked_by_user: userLikesMap.has(post.id)
       }));
     } catch (error) {
       console.error('❌ Get my posts error:', error);

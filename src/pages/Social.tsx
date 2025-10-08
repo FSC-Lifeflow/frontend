@@ -1,6 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import { WellnessLayout } from "@/components/WellnessLayout";
 import { WellnessCard } from "@/components/WellnessCard";
+import FriendProfile from "@/components/FriendProfile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,13 +12,15 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { 
   Search, Trophy, UserPlus, Crown, Medal, Award, Users,
-  Loader2, Share2, Edit, Trash2, FileText, Calendar, Zap, X
+  Loader2, Share2, Edit, Trash2, FileText, Calendar, Zap, X,
+  Heart, MessageCircle, Send
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { userService, type SearchUser } from "@/services/userService";
 import { friendService } from "@/services/friendService";
 import { postService, type UserPost } from "@/services/postService";
 import { notificationService } from "@/services/notificationService";
+import { postInteractionService, type PostComment } from "@/services/postInteractionService";
 import { supabase } from "@/lib/supabase";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -25,14 +29,16 @@ import { cn } from "@/lib/utils";
 
 // Mock data
 const mockFriends = [
-  { id: 1, name: "Alex Thompson", username: "@alexfit", avatar: "", streak: 12, weeklyPoints: 850 },
-  { id: 2, name: "Maria Garcia", username: "@maria_wellness", avatar: "", streak: 8, weeklyPoints: 920 },
-  { id: 3, name: "Jake Wilson", username: "@jake_strong", avatar: "", streak: 15, weeklyPoints: 780 },
-  { id: 4, name: "Emma Davis", username: "@emma_yoga", avatar: "", streak: 6, weeklyPoints: 650 },
+  { id: 1, name: "Alex Thompson", username: "@alexfit", avatar: "", weeklyPoints: 850 },
+  { id: 2, name: "Maria Garcia", username: "@maria_wellness", avatar: "", weeklyPoints: 920 },
+  { id: 3, name: "Jake Wilson", username: "@jake_strong", avatar: "", weeklyPoints: 780 },
+  { id: 4, name: "Emma Davis", username: "@emma_yoga", avatar: "", weeklyPoints: 650 },
 ];
 
 export default function Social() {
   const { toast } = useToast();
+  const location = useLocation();
+  const highlightedPostRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [newPost, setNewPost] = useState("");
   const [showPrivacyPrompt, setShowPrivacyPrompt] = useState(!localStorage.getItem('socialOptIn'));
@@ -52,6 +58,23 @@ export default function Social() {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
   
+  // Comments and likes states
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [selectedPost, setSelectedPost] = useState<UserPost | null>(null);
+  const [comments, setComments] = useState<PostComment[]>([]);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
+  const [newComment, setNewComment] = useState("");
+  const [isPostingComment, setIsPostingComment] = useState(false);
+  const [expandedCommentId, setExpandedCommentId] = useState<string | null>(null);
+  const [replyContent, setReplyContent] = useState("");
+  const [isPostingReply, setIsPostingReply] = useState(false);
+  const [showLikesModal, setShowLikesModal] = useState(false);
+  const [postLikes, setPostLikes] = useState<Array<{ user_id: string; user?: SearchUser }>>([]);
+  const [isLoadingLikes, setIsLoadingLikes] = useState(false);
+  const [showSinglePostModal, setShowSinglePostModal] = useState(false);
+  const [singlePost, setSinglePost] = useState<UserPost | null>(null);
+  const [isLoadingSinglePost, setIsLoadingSinglePost] = useState(false);
+  
   // Co-Workout states
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showChallengeModal, setShowChallengeModal] = useState(false);
@@ -70,6 +93,9 @@ export default function Social() {
   const [workoutDuration, setWorkoutDuration] = useState("");
   const [workoutPlace, setWorkoutPlace] = useState("");
   const [workoutNote, setWorkoutNote] = useState("");
+  
+  // Friend profile viewing
+  const [viewingFriendId, setViewingFriendId] = useState<string | null>(null);
 
   const handleOptIn = () => {
     localStorage.setItem('socialOptIn', 'true');
@@ -267,6 +293,341 @@ export default function Social() {
     }
   };
 
+  // Handle like/unlike post
+  const handleToggleLike = async (post: UserPost) => {
+    try {
+      if (post.is_liked_by_user) {
+        await postInteractionService.unlikePost(post.id);
+        // Update post in state
+        const updatePost = (p: UserPost) => 
+          p.id === post.id 
+            ? { ...p, is_liked_by_user: false, likes_count: (p.likes_count || 1) - 1 }
+            : p;
+        setPosts(prev => prev.map(updatePost));
+        setMyPosts(prev => prev.map(updatePost));
+      } else {
+        await postInteractionService.likePost(post.id);
+        // Update post in state
+        const updatePost = (p: UserPost) => 
+          p.id === post.id 
+            ? { ...p, is_liked_by_user: true, likes_count: (p.likes_count || 0) + 1 }
+            : p;
+        setPosts(prev => prev.map(updatePost));
+        setMyPosts(prev => prev.map(updatePost));
+      }
+    } catch (error: any) {
+      console.error('❌ Error toggling like:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update like",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Open comments modal
+  const handleOpenComments = async (post: UserPost) => {
+    setSelectedPost(post);
+    setShowCommentsModal(true);
+    setIsLoadingComments(true);
+    try {
+      const postComments = await postInteractionService.getPostComments(post.id);
+      setComments(postComments);
+    } catch (error: any) {
+      console.error('❌ Error loading comments:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load comments",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingComments(false);
+    }
+  };
+
+  // Post a comment
+  const handlePostComment = async () => {
+    if (!selectedPost || !newComment.trim()) return;
+
+    setIsPostingComment(true);
+    try {
+      const comment = await postInteractionService.createComment(selectedPost.id, newComment);
+      setComments(prev => [...prev, comment]);
+      setNewComment("");
+      
+      // Update comments count in posts
+      const updatePost = (p: UserPost) => 
+        p.id === selectedPost.id 
+          ? { ...p, comments_count: (p.comments_count || 0) + 1 }
+          : p;
+      setPosts(prev => prev.map(updatePost));
+      setMyPosts(prev => prev.map(updatePost));
+      
+      toast({
+        title: "Comment Posted",
+        description: "Your comment has been added!",
+      });
+    } catch (error: any) {
+      console.error('❌ Error posting comment:', error);
+      toast({
+        title: "Error",
+        description: "Failed to post comment",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPostingComment(false);
+    }
+  };
+
+  // Toggle comment like
+  const handleToggleCommentLike = async (comment: PostComment) => {
+    try {
+      if (comment.is_liked_by_user) {
+        await postInteractionService.unlikeComment(comment.id);
+        setComments(prev => prev.map(c => 
+          c.id === comment.id 
+            ? { ...c, is_liked_by_user: false, likes_count: (c.likes_count || 1) - 1 }
+            : c
+        ));
+      } else {
+        await postInteractionService.likeComment(comment.id);
+        setComments(prev => prev.map(c => 
+          c.id === comment.id 
+            ? { ...c, is_liked_by_user: true, likes_count: (c.likes_count || 0) + 1 }
+            : c
+        ));
+      }
+    } catch (error: any) {
+      console.error('❌ Error toggling comment like:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update like",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Load replies for a comment
+  const handleLoadReplies = async (commentId: string) => {
+    if (expandedCommentId === commentId) {
+      setExpandedCommentId(null);
+      return;
+    }
+
+    setExpandedCommentId(commentId);
+    try {
+      const replies = await postInteractionService.getCommentReplies(commentId);
+      setComments(prev => prev.map(c => 
+        c.id === commentId ? { ...c, replies } : c
+      ));
+    } catch (error: any) {
+      console.error('❌ Error loading replies:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load replies",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Post a reply
+  const handlePostReply = async (comment: PostComment) => {
+    if (!replyContent.trim()) return;
+
+    // Check if the comment owner is blocked
+    if (comment.user_id) {
+      try {
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        
+        if (currentUser) {
+          // Check if either user has blocked the other
+          const { data: blocks } = await supabase
+            .from('user_blocks')
+            .select('*')
+            .or(`and(blocker_id.eq.${currentUser.id},blocked_id.eq.${comment.user_id}),and(blocker_id.eq.${comment.user_id},blocked_id.eq.${currentUser.id})`);
+
+          if (blocks && blocks.length > 0) {
+            toast({
+              title: "Cannot Reply",
+              description: "You cannot reply to this comment",
+              variant: "destructive",
+            });
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error checking block status:', error);
+      }
+    }
+
+    setIsPostingReply(true);
+    try {
+      const reply = await postInteractionService.createReply(comment.id, replyContent);
+      setComments(prev => prev.map(c => 
+        c.id === comment.id 
+          ? { 
+              ...c, 
+              replies: [...(c.replies || []), reply],
+              replies_count: (c.replies_count || 0) + 1
+            }
+          : c
+      ));
+      setReplyContent("");
+      toast({
+        title: "Reply Posted",
+        description: "Your reply has been added!",
+      });
+    } catch (error: any) {
+      console.error('❌ Error posting reply:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to post reply",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPostingReply(false);
+    }
+  };
+
+  // View who liked a post
+  const handleViewLikes = async (post: UserPost) => {
+    setSelectedPost(post);
+    setShowLikesModal(true);
+    setIsLoadingLikes(true);
+    
+    try {
+      // Get all likes for this post
+      const { data: likes, error } = await supabase
+        .from('post_likes')
+        .select('user_id')
+        .eq('post_id', post.id);
+
+      if (error) {
+        console.error('❌ Error fetching likes:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load likes",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!likes || likes.length === 0) {
+        setPostLikes([]);
+        return;
+      }
+
+      // Get user info for all likers
+      const userIds = likes.map(l => l.user_id);
+      const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select('id, first_name, last_name, username, email, created_at')
+        .in('id', userIds);
+
+      if (usersError) {
+        console.error('❌ Error fetching user info:', usersError);
+      }
+
+      const likesWithUsers = likes.map(like => ({
+        user_id: like.user_id,
+        user: users?.find(u => u.id === like.user_id)
+      }));
+
+      setPostLikes(likesWithUsers);
+    } catch (error) {
+      console.error('❌ Error in handleViewLikes:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load likes",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingLikes(false);
+    }
+  };
+
+  // Fetch a single post by ID
+  const fetchSinglePost = async (postId: string) => {
+    setIsLoadingSinglePost(true);
+    setShowSinglePostModal(true);
+    
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+
+      // Get the post
+      const { data: post, error: postError } = await supabase
+        .from('user_posts')
+        .select('*')
+        .eq('id', postId)
+        .single();
+
+      if (postError) {
+        console.error('❌ Failed to get post:', postError);
+        throw new Error('Failed to get post');
+      }
+
+      // Get user info for the post
+      const { data: userInfo } = await supabase
+        .from('users')
+        .select('id, first_name, last_name, username, email')
+        .eq('id', post.user_id)
+        .single();
+
+      // Get likes data
+      const { data: likesData } = await supabase
+        .from('post_likes')
+        .select('post_id, user_id')
+        .eq('post_id', postId);
+
+      // Get comments with their IDs
+      const { data: commentsData } = await supabase
+        .from('post_comments')
+        .select('id, post_id')
+        .eq('post_id', postId);
+
+      // Get all replies for these comments
+      const commentIds = commentsData?.map(c => c.id) || [];
+      const { data: repliesData } = commentIds.length > 0 
+        ? await supabase
+            .from('comment_replies')
+            .select('comment_id')
+            .in('comment_id', commentIds)
+        : { data: [] };
+
+      // Build likes count and check if user liked
+      const likesCount = likesData?.length || 0;
+      const isLikedByUser = likesData?.some(like => like.user_id === currentUser.id) || false;
+
+      // Build comments count (including replies)
+      let commentsCount = commentsData?.length || 0;
+      commentsCount += repliesData?.length || 0;
+
+      const postWithData: UserPost = {
+        ...post,
+        user: userInfo || undefined,
+        likes_count: likesCount,
+        comments_count: commentsCount,
+        is_liked_by_user: isLikedByUser
+      };
+
+      setSinglePost(postWithData);
+    } catch (error: any) {
+      console.error('❌ Error fetching single post:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load post",
+        variant: "destructive",
+      });
+      setShowSinglePostModal(false);
+    } finally {
+      setIsLoadingSinglePost(false);
+    }
+  };
+
   // Handle search on Enter key press
   const handleSearchKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -306,6 +667,37 @@ export default function Social() {
       setShowSearchResults(false);
     }
   }, [searchQuery]);
+
+  // Handle navigation from notifications
+  useEffect(() => {
+    const state = location.state as { 
+      openMyPosts?: boolean; 
+      highlightPostId?: string;
+      viewSinglePost?: boolean;
+      postId?: string;
+    } | null;
+    
+    if (state?.viewSinglePost && state.postId) {
+      // Fetch and display single post
+      fetchSinglePost(state.postId);
+      
+      // Clear the navigation state
+      window.history.replaceState({}, document.title);
+    } else if (state?.openMyPosts) {
+      // Open My Posts modal
+      handleOpenMyPosts();
+      
+      // Scroll to highlighted post after a short delay to ensure modal is rendered
+      if (state.highlightPostId) {
+        setTimeout(() => {
+          highlightedPostRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 300);
+      }
+      
+      // Clear the navigation state
+      window.history.replaceState({}, document.title);
+    }
+  }, [location]);
 
   // Load friends for co-workout functionality
   useEffect(() => {
@@ -348,6 +740,11 @@ export default function Social() {
       loadPosts();
     }
   }, [showPrivacyPrompt, toast]);
+
+  // If viewing a friend's profile, show FriendProfile component
+  if (viewingFriendId) {
+    return <FriendProfile friendId={viewingFriendId} onBack={() => setViewingFriendId(null)} />;
+  }
 
   if (showPrivacyPrompt) {
     return (
@@ -425,7 +822,10 @@ export default function Social() {
                   posts.map((post) => (
                     <div key={post.id} className="border-b border-muted last:border-0 pb-4 last:pb-0">
                       <div className="flex items-start gap-3">
-                        <Avatar>
+                        <Avatar 
+                          className="cursor-pointer hover:ring-2 hover:ring-primary transition-all"
+                          onClick={() => post.user_id && setViewingFriendId(post.user_id)}
+                        >
                           <AvatarFallback className="bg-gradient-primary text-white">
                             {post.user?.first_name?.[0]}{post.user?.last_name?.[0]}
                           </AvatarFallback>
@@ -468,7 +868,38 @@ export default function Social() {
                               </Badge>
                             )}
                           </div>
-                          <p className="text-foreground mb-2">{post.content}</p>
+                          <p className="text-foreground mb-3">{post.content}</p>
+                          
+                          {/* Like and Comment buttons */}
+                          <div className="flex items-center gap-4">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2 gap-2"
+                              onClick={() => handleToggleLike(post)}
+                            >
+                              <Heart 
+                                className={cn(
+                                  "w-4 h-4",
+                                  post.is_liked_by_user && "fill-red-500 text-red-500"
+                                )}
+                              />
+                              <span className="text-sm">
+                                {post.likes_count || 0}
+                              </span>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2 gap-2"
+                              onClick={() => handleOpenComments(post)}
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                              <span className="text-sm">
+                                {post.comments_count || 0}
+                              </span>
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1307,8 +1738,16 @@ export default function Social() {
                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
               </div>
             ) : myPosts.length > 0 ? (
-              myPosts.map((post) => (
-                <div key={post.id} className="border rounded-lg p-4 space-y-3">
+              myPosts.map((post) => {
+                const isHighlighted = location.state?.highlightPostId === post.id;
+                return (
+                <div 
+                  key={post.id} 
+                  ref={isHighlighted ? highlightedPostRef : null}
+                  className={`border rounded-lg p-4 space-y-3 transition-colors ${
+                    isHighlighted ? 'ring-2 ring-primary bg-primary/5' : ''
+                  }`}
+                >
                   {editingPost?.id === post.id ? (
                     <>
                       <Textarea
@@ -1360,7 +1799,46 @@ export default function Social() {
                               </Badge>
                             )}
                           </div>
-                          <p className="text-foreground">{post.content}</p>
+                          <p className="text-foreground mb-3">{post.content}</p>
+                          
+                          {/* Like and Comment Stats */}
+                          <div className="flex items-center gap-4 mb-3">
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 px-2 gap-2"
+                                onClick={() => handleToggleLike(post)}
+                              >
+                                <Heart 
+                                  className={cn(
+                                    "w-4 h-4",
+                                    post.is_liked_by_user && "fill-red-500 text-red-500"
+                                  )}
+                                />
+                              </Button>
+                              <Button
+                                variant="link"
+                                size="sm"
+                                className="h-8 px-1 text-sm underline-offset-4 hover:underline"
+                                onClick={() => handleViewLikes(post)}
+                                disabled={!post.likes_count}
+                              >
+                                {post.likes_count || 0} {post.likes_count === 1 ? 'like' : 'likes'}
+                              </Button>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2 gap-2"
+                              onClick={() => handleOpenComments(post)}
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                              <span className="text-sm">
+                                {post.comments_count || 0}
+                              </span>
+                            </Button>
+                          </div>
                         </div>
                       </div>
                       <div className="flex gap-2">
@@ -1389,13 +1867,363 @@ export default function Social() {
                     </>
                   )}
                 </div>
-              ))
+              );
+              })
             ) : (
               <p className="text-muted-foreground text-center py-8">
                 You haven't created any posts yet. Share your first workout update!
               </p>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Comments Modal */}
+      <Dialog open={showCommentsModal} onOpenChange={setShowCommentsModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Comments</DialogTitle>
+            <DialogDescription>
+              {selectedPost && (
+                <div className="mt-2 p-3 bg-muted rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Avatar className="w-8 h-8">
+                      <AvatarFallback className="bg-gradient-primary text-white text-xs">
+                        {selectedPost.user?.first_name?.[0]}{selectedPost.user?.last_name?.[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <span className="font-medium text-sm">
+                        {selectedPost.user?.first_name} {selectedPost.user?.last_name}
+                      </span>
+                      {selectedPost.user?.username && (
+                        <span className="text-xs text-muted-foreground ml-2">
+                          @{selectedPost.user.username}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-sm text-foreground">{selectedPost.content}</p>
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Comments List */}
+            {isLoadingComments ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            ) : comments.length > 0 ? (
+              <div className="space-y-4">
+                {comments.map((comment) => (
+                  <div key={comment.id} className="border-b border-muted pb-4 last:border-0">
+                    <div className="flex items-start gap-3">
+                      <Avatar 
+                        className="w-8 h-8 cursor-pointer hover:ring-2 hover:ring-primary transition-all"
+                        onClick={() => {
+                          if (comment.user_id) {
+                            setShowCommentsModal(false);
+                            setViewingFriendId(comment.user_id);
+                          }
+                        }}
+                      >
+                        <AvatarFallback className="bg-gradient-primary text-white text-xs">
+                          {comment.user?.first_name?.[0]}{comment.user?.last_name?.[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium text-sm">
+                            {comment.user?.first_name} {comment.user?.last_name}
+                          </span>
+                          {comment.user?.username && (
+                            <span className="text-xs text-muted-foreground">
+                              @{comment.user.username}
+                            </span>
+                          )}
+                          <span className="text-xs text-muted-foreground">•</span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(comment.created_at).toLocaleDateString('en-US', { 
+                              month: 'short', 
+                              day: 'numeric',
+                              hour: 'numeric',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                        <p className="text-sm mb-2">{comment.content}</p>
+                        
+                        {/* Comment actions */}
+                        <div className="flex items-center gap-3">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 gap-1"
+                            onClick={() => handleToggleCommentLike(comment)}
+                          >
+                            <Heart 
+                              className={cn(
+                                "w-3 h-3",
+                                comment.is_liked_by_user && "fill-red-500 text-red-500"
+                              )}
+                            />
+                            <span className="text-xs">
+                              {comment.likes_count || 0}
+                            </span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => handleLoadReplies(comment.id)}
+                          >
+                            {expandedCommentId === comment.id ? 'Hide' : 'Reply'} 
+                            {comment.replies_count ? ` (${comment.replies_count})` : ''}
+                          </Button>
+                        </div>
+
+                        {/* Replies section */}
+                        {expandedCommentId === comment.id && (
+                          <div className="mt-3 ml-4 space-y-3">
+                            {/* Existing replies */}
+                            {comment.replies && comment.replies.length > 0 && (
+                              <div className="space-y-3">
+                                {comment.replies.map((reply) => (
+                                  <div key={reply.id} className="flex items-start gap-2">
+                                    <Avatar 
+                                      className="w-6 h-6 cursor-pointer hover:ring-2 hover:ring-primary transition-all"
+                                      onClick={() => {
+                                        if (reply.user_id) {
+                                          setShowCommentsModal(false);
+                                          setViewingFriendId(reply.user_id);
+                                        }
+                                      }}
+                                    >
+                                      <AvatarFallback className="bg-gradient-primary text-white text-xs">
+                                        {reply.user?.first_name?.[0]}{reply.user?.last_name?.[0]}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="font-medium text-xs">
+                                          {reply.user?.first_name} {reply.user?.last_name}
+                                        </span>
+                                        <span className="text-xs text-muted-foreground">
+                                          {new Date(reply.created_at).toLocaleDateString('en-US', { 
+                                            month: 'short', 
+                                            day: 'numeric',
+                                            hour: 'numeric',
+                                            minute: '2-digit'
+                                          })}
+                                        </span>
+                                      </div>
+                                      <p className="text-xs">{reply.content}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Reply input */}
+                            <div className="flex gap-2">
+                              <Input
+                                placeholder="Write a reply..."
+                                value={replyContent}
+                                onChange={(e) => setReplyContent(e.target.value)}
+                                onKeyPress={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handlePostReply(comment);
+                                  }
+                                }}
+                                className="text-sm"
+                              />
+                              <Button
+                                size="sm"
+                                variant="zen"
+                                onClick={() => handlePostReply(comment)}
+                                disabled={isPostingReply || !replyContent.trim()}
+                              >
+                                {isPostingReply ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Send className="w-4 h-4" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-center py-8 text-sm">
+                No comments yet. Be the first to comment!
+              </p>
+            )}
+
+            {/* New Comment Input */}
+            <div className="flex gap-2 pt-4 border-t">
+              <Input
+                placeholder="Write a comment..."
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handlePostComment();
+                  }
+                }}
+              />
+              <Button
+                variant="zen"
+                onClick={handlePostComment}
+                disabled={isPostingComment || !newComment.trim()}
+              >
+                {isPostingComment ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Likes Modal */}
+      <Dialog open={showLikesModal} onOpenChange={setShowLikesModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Likes</DialogTitle>
+            <DialogDescription>
+              People who liked this post
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 max-h-[400px] overflow-y-auto">
+            {isLoadingLikes ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            ) : postLikes.length > 0 ? (
+              postLikes.map((like) => (
+                <div key={like.user_id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
+                  <Avatar>
+                    <AvatarFallback className="bg-gradient-primary text-white">
+                      {like.user?.first_name?.[0]}{like.user?.last_name?.[0]}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">
+                      {like.user?.first_name} {like.user?.last_name}
+                    </p>
+                    {like.user?.username && (
+                      <p className="text-xs text-muted-foreground">
+                        @{like.user.username}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-muted-foreground text-center py-8 text-sm">
+                No likes yet
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Single Post Modal */}
+      <Dialog open={showSinglePostModal} onOpenChange={setShowSinglePostModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Post</DialogTitle>
+            <DialogDescription>
+              View post and comments
+            </DialogDescription>
+          </DialogHeader>
+
+          {isLoadingSinglePost ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : singlePost ? (
+            <div className="space-y-4">
+              {/* Post Content */}
+              <div className="border rounded-lg p-4">
+                <div className="flex items-start gap-3 mb-3">
+                  <Avatar>
+                    <AvatarFallback className="bg-gradient-primary text-white">
+                      {singlePost.user?.first_name?.[0]}{singlePost.user?.last_name?.[0]}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium">
+                        {singlePost.user?.first_name} {singlePost.user?.last_name}
+                      </span>
+                      {singlePost.user?.username && (
+                        <span className="text-sm text-muted-foreground">
+                          @{singlePost.user.username}
+                        </span>
+                      )}
+                      <span className="text-sm text-muted-foreground">•</span>
+                      <span className="text-sm text-muted-foreground">
+                        {new Date(singlePost.created_at).toLocaleDateString('en-US', { 
+                          month: 'short', 
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                    </div>
+                    <p className="text-foreground mb-3">{singlePost.content}</p>
+                    
+                    {/* Like and Comment buttons */}
+                    <div className="flex items-center gap-4">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 gap-2"
+                        onClick={() => handleToggleLike(singlePost)}
+                      >
+                        <Heart 
+                          className={cn(
+                            "w-4 h-4",
+                            singlePost.is_liked_by_user && "fill-red-500 text-red-500"
+                          )}
+                        />
+                        <span className="text-sm">
+                          {singlePost.likes_count || 0}
+                        </span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 gap-2"
+                        onClick={() => handleOpenComments(singlePost)}
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        <span className="text-sm">
+                          {singlePost.comments_count || 0}
+                        </span>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-center py-8">
+              Post not found
+            </p>
+          )}
         </DialogContent>
       </Dialog>
     </WellnessLayout>

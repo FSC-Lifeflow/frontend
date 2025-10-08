@@ -105,7 +105,7 @@ const Landing = () => {
                     <span className="text-sm">Social</span>
                   </div>
                   <div className="text-2xl font-bold text-foreground">12</div>
-                  <div className="text-xs text-muted-foreground">Day streak</div>
+                  <div className="text-xs text-muted-foreground">Active friends</div>
                 </div>
               </div>
             </WellnessCard>
@@ -267,16 +267,16 @@ const Landing = () => {
               
               <p className="text-muted-foreground mb-6 leading-relaxed">
                 Provides personalized workout reminders, motivational messages, and optional friend 
-                notifications to keep you accountable. Features streaks, leaderboards, and social challenges.
+                notifications to keep you accountable. Features leaderboards and social challenges.
               </p>
               
               <div className="bg-muted/50 rounded-lg p-4">
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center text-white text-xs font-bold">🔥</div>
+                    <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center text-white text-xs font-bold">🎯</div>
                     <div>
-                      <div className="text-sm font-medium">12-day streak!</div>
-                      <div className="text-xs text-muted-foreground">Keep it up, you're on fire!</div>
+                      <div className="text-sm font-medium">Goal achieved!</div>
+                      <div className="text-xs text-muted-foreground">Keep up the great work!</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -465,7 +465,7 @@ const Landing = () => {
                     <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
                       <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white text-xs font-bold">M</div>
                       <div className="flex-1">
-                        <div className="text-sm font-medium">Maya hit a 7-day streak!</div>
+                        <div className="text-sm font-medium">Maya completed a workout!</div>
                         <div className="text-xs text-muted-foreground">4 hours ago</div>
                       </div>
                     </div>

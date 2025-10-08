@@ -4,10 +4,11 @@ import { WellnessCard } from "@/components/WellnessCard";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Users, Loader2 } from "lucide-react";
+import { ArrowLeft, Users, Loader2, UserPlus, Ban } from "lucide-react";
 import { userService } from "@/services/userService";
 import { friendService, type SearchUser } from "@/services/friendService";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 
 /**
  * Type for friend's public profile data
@@ -49,19 +50,56 @@ export default function FriendProfile({ friendId, onBack }: FriendProfileProps) 
   const [profileData, setProfileData] = useState<FriendProfileData | null>(null);
   const [friends, setFriends] = useState<SearchUser[]>([]);
   const [loadingFriends, setLoadingFriends] = useState(false);
+  const [isFriend, setIsFriend] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [blockedBy, setBlockedBy] = useState(false);
+  const [sendingRequest, setSendingRequest] = useState(false);
 
-  // Fetch friend's profile data
+  // Fetch friend's profile data and check relationship status
   useEffect(() => {
     const fetchProfile = async () => {
       setLoading(true);
       try {
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        
+        if (!currentUser) {
+          throw new Error('Not authenticated');
+        }
+
+        // Check if blocked
+        const { data: blocks } = await supabase
+          .from('user_blocks')
+          .select('*')
+          .or(`and(blocker_id.eq.${currentUser.id},blocked_id.eq.${friendId}),and(blocker_id.eq.${friendId},blocked_id.eq.${currentUser.id})`);
+
+        if (blocks && blocks.length > 0) {
+          const block = blocks[0];
+          if (block.blocker_id === currentUser.id) {
+            setIsBlocked(true);
+          } else {
+            setBlockedBy(true);
+          }
+          setLoading(false);
+          return;
+        }
+
+        // Check friendship status
+        const { data: friendshipData } = await supabase
+          .from('friend_requests')
+          .select('status')
+          .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${currentUser.id})`)
+          .eq('status', 'accepted')
+          .single();
+
+        setIsFriend(!!friendshipData);
+
         const data = await userService.getFriendProfile(friendId);
         setProfileData(data);
       } catch (error) {
         console.error('Failed to fetch friend profile:', error);
         toast({
           title: "Error",
-          description: "Failed to load friend's profile",
+          description: "Failed to load profile",
           variant: "destructive",
         });
       } finally {
@@ -132,6 +170,78 @@ export default function FriendProfile({ friendId, onBack }: FriendProfileProps) 
     );
   }
 
+  // Handle sending friend request
+  const handleSendFriendRequest = async () => {
+    setSendingRequest(true);
+    try {
+      await friendService.sendFriendRequest(friendId);
+      toast({
+        title: "Friend Request Sent",
+        description: "Your friend request has been sent!",
+      });
+      // Optionally go back after sending
+      setTimeout(() => onBack(), 1500);
+    } catch (error: any) {
+      console.error('Failed to send friend request:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send friend request",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingRequest(false);
+    }
+  };
+
+  // Show blocked message
+  if (blockedBy) {
+    return (
+      <WellnessLayout>
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-4xl mx-auto">
+            <Button variant="ghost" onClick={onBack} className="mb-4">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Button>
+            <WellnessCard>
+              <div className="text-center py-12">
+                <Ban className="w-16 h-16 mx-auto mb-4 text-destructive" />
+                <h2 className="text-2xl font-bold mb-2">Access Restricted</h2>
+                <p className="text-muted-foreground">
+                  This user has restricted access to their profile.
+                </p>
+              </div>
+            </WellnessCard>
+          </div>
+        </div>
+      </WellnessLayout>
+    );
+  }
+
+  if (isBlocked) {
+    return (
+      <WellnessLayout>
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-4xl mx-auto">
+            <Button variant="ghost" onClick={onBack} className="mb-4">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Button>
+            <WellnessCard>
+              <div className="text-center py-12">
+                <Ban className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+                <h2 className="text-2xl font-bold mb-2">User Blocked</h2>
+                <p className="text-muted-foreground">
+                  You have blocked this user.
+                </p>
+              </div>
+            </WellnessCard>
+          </div>
+        </div>
+      </WellnessLayout>
+    );
+  }
+
   if (!profileData) {
     return (
       <WellnessLayout>
@@ -139,7 +249,7 @@ export default function FriendProfile({ friendId, onBack }: FriendProfileProps) 
           <div className="max-w-4xl mx-auto">
             <Button variant="ghost" onClick={onBack} className="mb-4">
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Profile
+              Back
             </Button>
             <WellnessCard>
               <p className="text-center text-muted-foreground py-8">
@@ -157,10 +267,26 @@ export default function FriendProfile({ friendId, onBack }: FriendProfileProps) 
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           {/* Back Button */}
-          <Button variant="ghost" onClick={onBack} className="mb-4">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Profile
-          </Button>
+          <div className="flex items-center justify-between mb-4">
+            <Button variant="ghost" onClick={onBack}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Button>
+            {!isFriend && (
+              <Button 
+                variant="default" 
+                onClick={handleSendFriendRequest}
+                disabled={sendingRequest}
+              >
+                {sendingRequest ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <UserPlus className="w-4 h-4 mr-2" />
+                )}
+                Send Friend Request
+              </Button>
+            )}
+          </div>
 
           {/* Profile Header */}
           <WellnessCard className="mb-6">
