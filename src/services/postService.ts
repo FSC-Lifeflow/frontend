@@ -28,6 +28,54 @@ export type UserPost = {
  */
 export const postService = {
   /**
+   * Gets posts for a specific user
+   * @param userId - ID of the user to get posts for
+   * @param limit - Maximum number of posts to return
+   * @returns Array of user's posts
+   */
+  async getUserPosts(userId: string, limit: number = 5): Promise<UserPost[]> {
+    try {
+      // First get the posts
+      const { data: posts, error: postsError } = await supabase
+        .from('user_posts')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (postsError) throw postsError;
+      if (!posts || posts.length === 0) return [];
+
+      // Then get the user data for these posts
+      const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select('id, first_name, last_name, username, email')
+        .in('id', posts.map(p => p.user_id));
+
+      if (usersError) throw usersError;
+
+      // Combine the data
+      return posts.map(post => {
+        const user = users?.find(u => u.id === post.user_id);
+        return {
+          ...post,
+          is_edited: post.created_at !== post.updated_at,
+          user: user ? {
+            id: user.id,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            username: user.username,
+            email: user.email
+          } : undefined
+        };
+      });
+    } catch (error) {
+      console.error('Error fetching user posts:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Creates a new workout progress post
    * @param content - The content of the post
    * @returns The created post
