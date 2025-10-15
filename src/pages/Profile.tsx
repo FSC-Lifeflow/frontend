@@ -392,10 +392,12 @@ export default function Profile() {
         return "💬";
       case "comment_reply":
         return "↩️";
+      case "post_mention":
+        return "📢";
       case "social":
         return "❤️";
       default:
-        return "📢";
+        return "🔔";
     }
   };
 
@@ -997,12 +999,12 @@ export default function Profile() {
                       className={`p-3 rounded-lg border ${
                         notification.read ? 'bg-muted/30' : 'bg-primary/5 border-primary/20'
                       } ${
-                        (notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply') 
+                        (notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply' || notification.type === 'post_mention') 
                           ? 'cursor-pointer hover:bg-muted/50 transition-colors' 
                           : ''
                       }`}
                       onClick={() => {
-                        if (notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply') {
+                        if (notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply' || notification.type === 'post_mention') {
                           handlePostNotificationClick(notification);
                         }
                       }}
@@ -1018,12 +1020,13 @@ export default function Profile() {
                             <p className="text-xs text-muted-foreground mt-2">
                               {formatTimestamp(notification.created_at)}
                             </p>
-                            {(notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply') && (
+                            {(notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply' || notification.type === 'post_mention') && (
                               <p className="text-xs text-primary mt-1">
                                 Click to view post →
                               </p>
                             )}
                             
+
                             {/* Friend Request Actions */}
                             {notification.type === 'friend_request' && notification.data?.friend_request_id && (
                               <div className="flex flex-wrap gap-2 mt-3">

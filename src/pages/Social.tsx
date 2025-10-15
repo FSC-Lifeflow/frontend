@@ -3,6 +3,8 @@ import { useLocation } from "react-router-dom";
 import { WellnessLayout } from "@/components/WellnessLayout";
 import { WellnessCard } from "@/components/WellnessCard";
 import FriendProfile from "@/components/FriendProfile";
+import { MentionText } from "@/components/MentionText";
+import { MentionTextarea } from "@/components/MentionTextarea";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -668,16 +670,23 @@ export default function Social() {
     }
   }, [searchQuery]);
 
-  // Handle navigation from notifications
+  // Handle navigation from notifications and mentions
   useEffect(() => {
     const state = location.state as { 
       openMyPosts?: boolean; 
       highlightPostId?: string;
       viewSinglePost?: boolean;
       postId?: string;
+      viewFriendId?: string;
     } | null;
     
-    if (state?.viewSinglePost && state.postId) {
+    if (state?.viewFriendId) {
+      // View friend profile from mention click
+      setViewingFriendId(state.viewFriendId);
+      
+      // Clear the navigation state
+      window.history.replaceState({}, document.title);
+    } else if (state?.viewSinglePost && state.postId) {
       // Fetch and display single post
       fetchSinglePost(state.postId);
       
@@ -792,11 +801,12 @@ export default function Social() {
                   My Posts
                 </Button>
               </div>
-              <Textarea
-                placeholder="Share an update about your wellness journey..."
+              <MentionTextarea
+                placeholder="Share an update about your wellness journey... (Type @ to mention friends)"
                 value={newPost}
-                onChange={(e) => setNewPost(e.target.value)}
+                onChange={setNewPost}
                 className="mb-4"
+                disabled={isCreatingPost}
               />
               <div className="flex justify-end">
                 <Button variant="motivation" onClick={handleCreatePost} disabled={isCreatingPost}>
@@ -868,7 +878,11 @@ export default function Social() {
                               </Badge>
                             )}
                           </div>
-                          <p className="text-foreground mb-3">{post.content}</p>
+                          <MentionText 
+                            text={post.content} 
+                            className="text-foreground mb-3 block" 
+                            onMentionClick={setViewingFriendId}
+                          />
                           
                           {/* Like and Comment buttons */}
                           <div className="flex items-center gap-4">
@@ -1799,7 +1813,11 @@ export default function Social() {
                               </Badge>
                             )}
                           </div>
-                          <p className="text-foreground mb-3">{post.content}</p>
+                          <MentionText 
+                            text={post.content} 
+                            className="text-foreground mb-3 block" 
+                            onMentionClick={setViewingFriendId}
+                          />
                           
                           {/* Like and Comment Stats */}
                           <div className="flex items-center gap-4 mb-3">
