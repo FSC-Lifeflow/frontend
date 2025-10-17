@@ -129,6 +129,72 @@ export const userService = {
   },
 
   /**
+   * Gets the total count of users in the system
+   * Uses a database function to bypass RLS for public access
+   * @returns Total number of users
+   */
+  async getTotalUserCount(): Promise<number> {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_total_user_count');
+
+      if (error) {
+        console.error('❌ Failed to get user count:', error);
+        throw new Error('Failed to get user count');
+      }
+
+      return data || 0;
+    } catch (error) {
+      console.error('❌ Get user count error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Gets the total steps taken by all users today
+   * Uses a database function to bypass RLS for public access
+   * @returns Total steps taken today across all users
+   */
+  async getTotalStepsToday(): Promise<number> {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_total_steps_today');
+
+      if (error) {
+        console.error('❌ Failed to get total steps today:', error);
+        throw new Error('Failed to get total steps today');
+      }
+
+      return data || 0;
+    } catch (error) {
+      console.error('❌ Get total steps today error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Gets the count of AI-scheduled workouts this week
+   * Uses a database function to bypass RLS for public access
+   * @returns Count of AI-scheduled workouts this week across all users
+   */
+  async getAIWorkoutsThisWeek(): Promise<number> {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_ai_workouts_this_week');
+
+      if (error) {
+        console.error('❌ Failed to get AI workouts this week:', error);
+        throw new Error('Failed to get AI workouts this week');
+      }
+
+      return data || 0;
+    } catch (error) {
+      console.error('❌ Get AI workouts this week error:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Gets a friend's public profile information
    * Only returns public information (excludes personal details like email for privacy)
    * @param friendId - ID of the friend whose profile to fetch
