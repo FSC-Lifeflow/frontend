@@ -16,12 +16,33 @@ import {
   Heart,
   Sun,
   Clock,
-  ExternalLink
+  ExternalLink,
+  Sunrise,
+  Sunset,
+  Moon
 } from "lucide-react";
 
 function Dashboard() {
   
   const { user } = useAuth();
+
+  // Get time-based greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    
+    if (hour >= 5 && hour < 12) {
+      return { text: "Good morning", icon: Sunrise };
+    } else if (hour >= 12 && hour < 17) {
+      return { text: "Good afternoon", icon: Sun };
+    } else if (hour >= 17 && hour < 21) {
+      return { text: "Good evening", icon: Sunset };
+    } else {
+      return { text: "Good night", icon: Moon };
+    }
+  };
+
+  const greeting = getGreeting();
+  const GreetingIcon = greeting.icon;
 
   // Mock data for demonstration
   const todayStats = {
@@ -51,10 +72,10 @@ function Dashboard() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">
-            Good morning, {user?.first_name || 'there'}!
+            {greeting.text}, {user?.first_name || 'there'}!
           </h1>
           <p className="text-muted-foreground flex items-center gap-2">
-            <Sun className="w-4 h-4" />
+            <GreetingIcon className="w-4 h-4" />
             Ready to make today count? Let's keep up the momentum! 💪
           </p>
         </div>
