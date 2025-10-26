@@ -17,11 +17,14 @@ import {
   Medal,
   Award,
   Users,
-  Loader2
+  Loader2,
+  Image as ImageIcon,
+  X
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { userService, type SearchUser } from "@/services/userService";
 import { friendService } from "@/services/friendService";
+import { postService, type Post } from "@/services/postService";
 
 // Mock data
 const mockFriends = [
@@ -58,6 +61,11 @@ export default function Social() {
   const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isCreatingPost, setIsCreatingPost] = useState(false);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(false);
 
   const handleOptIn = () => {
     localStorage.setItem('socialOptIn', 'true');
@@ -120,13 +128,92 @@ export default function Social() {
     }
   };
 
-  const handleCreatePost = () => {
-    if (newPost.trim()) {
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Invalid File",
+          description: "Please select an image file",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Validate file size (5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: "File Too Large",
+          description: "Image must be less than 5MB",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setSelectedImage(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+  };
+
+  const handleCreatePost = async () => {
+    if (!newPost.trim() && !selectedImage) {
+      toast({
+        title: "Empty Post",
+        description: "Please add some text or an image",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCreatingPost(true);
+    try {
+      const post = await postService.createPost(newPost.trim(), selectedImage || undefined);
+      
+      // Add new post to the beginning of the feed
+      setPosts([post, ...posts]);
+      
       toast({
         title: "Post Shared",
         description: "Your update has been shared with your friends!",
       });
+      
+      // Clear form
       setNewPost("");
+      setSelectedImage(null);
+      setImagePreview(null);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create post",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingPost(false);
+    }
+  };
+
+  const loadPosts = async () => {
+    setIsLoadingPosts(true);
+    try {
+      const fetchedPosts = await postService.getFeedPosts();
+      setPosts(fetchedPosts);
+    } catch (error: any) {
+      console.error('Failed to load posts:', error);
+      // Silently fail - user will see mock data
+    } finally {
+      setIsLoadingPosts(false);
     }
   };
 
@@ -144,6 +231,13 @@ export default function Social() {
       setShowSearchResults(false);
     }
   }, [searchQuery]);
+
+  // Load posts on component mount
+  useEffect(() => {
+    if (!showPrivacyPrompt) {
+      loadPosts();
+    }
+  }, [showPrivacyPrompt]);
 
   if (showPrivacyPrompt) {
     return (
@@ -190,11 +284,65 @@ export default function Social() {
                 value={newPost}
                 onChange={(e) => setNewPost(e.target.value)}
                 className="mb-4"
+                rows={3}
               />
-              <div className="flex justify-end">
-                <Button variant="motivation" onClick={handleCreatePost}>
-                  <Share2 className="w-4 h-4 mr-2" />
-                  Share Update
+              
+              {/* Image Preview */}
+              {imagePreview && (
+                <div className="relative mb-4">
+                  <img 
+                    src={imagePreview} 
+                    alt="Preview" 
+                    className="w-full h-64 object-cover rounded-lg"
+                  />
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="absolute top-2 right-2"
+                    onClick={handleRemoveImage}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+              
+              <div className="flex justify-between items-center">
+                <div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageSelect}
+                    className="hidden"
+                    id="image-upload"
+                  />
+                  <label htmlFor="image-upload">
+                    <Button 
+                      variant="zen" 
+                      size="sm" 
+                      type="button"
+                      onClick={() => document.getElementById('image-upload')?.click()}
+                    >
+                      <ImageIcon className="w-4 h-4 mr-2" />
+                      Add Photo
+                    </Button>
+                  </label>
+                </div>
+                <Button 
+                  variant="motivation" 
+                  onClick={handleCreatePost}
+                  disabled={isCreatingPost || (!newPost.trim() && !selectedImage)}
+                >
+                  {isCreatingPost ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Sharing...
+                    </>
+                  ) : (
+                    <>
+                      <Share2 className="w-4 h-4 mr-2" />
+                      Share Update
+                    </>
+                  )}
                 </Button>
               </div>
             </WellnessCard>
@@ -202,39 +350,70 @@ export default function Social() {
             {/* Activity Feed */}
             <WellnessCard>
               <h2 className="text-lg font-semibold mb-4">Friend Activity</h2>
-              <div className="space-y-4">
-                {mockPosts.map((post) => (
+              {isLoadingPosts ? (
+                <div className="text-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-muted-foreground">Loading posts...</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {(posts.length > 0 ? posts : mockPosts).map((post) => (
                   <div key={post.id} className="border-b border-muted last:border-0 pb-4 last:pb-0">
                     <div className="flex items-start gap-3">
                       <Avatar>
-                        <AvatarImage src={post.user.avatar} />
+                        <AvatarImage src={'user' in post ? post.user?.avatar_url : post.user?.avatar} />
                         <AvatarFallback className="bg-gradient-primary text-white">
-                          {post.user.name.split(' ').map(n => n[0]).join('')}
+                          {'user' in post && post.user && post.user.first_name && post.user.last_name
+                            ? `${post.user.first_name[0]}${post.user.last_name[0]}`
+                            : post.user?.name ? post.user.name.split(' ').map(n => n[0]).join('') : 'U'}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium">{post.user.name}</span>
-                          <span className="text-sm text-muted-foreground">{post.user.username}</span>
+                          <span className="font-medium">
+                            {'user' in post && post.user
+                              ? `${post.user.first_name || ''} ${post.user.last_name || ''}`.trim() || 'Unknown User'
+                              : post.user?.name || 'Unknown User'}
+                          </span>
+                          <span className="text-sm text-muted-foreground">
+                            {'user' in post && post.user?.username
+                              ? `@${post.user.username}`
+                              : post.user?.username || ''}
+                          </span>
                           <span className="text-sm text-muted-foreground">•</span>
-                          <span className="text-sm text-muted-foreground">{post.timestamp}</span>
+                          <span className="text-sm text-muted-foreground">
+                            {'timestamp' in post 
+                              ? post.timestamp 
+                              : new Date(post.created_at).toLocaleDateString()}
+                          </span>
                         </div>
                         <p className="text-foreground mb-3">{post.content}</p>
+                        
+                        {/* Display image if present */}
+                        {'image_url' in post && post.image_url && (
+                          <img 
+                            src={post.image_url} 
+                            alt="Post image" 
+                            className="w-full rounded-lg mb-3 max-h-96 object-cover"
+                          />
+                        )}
+                        
                         <div className="flex items-center gap-4">
                           <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-red-500">
                             <Heart className="w-4 h-4 mr-1" />
-                            {post.likes}
+                            {'likes_count' in post ? post.likes_count : post.likes}
                           </Button>
                           <Button variant="ghost" size="sm" className="text-muted-foreground">
                             <MessageCircle className="w-4 h-4 mr-1" />
-                            {post.comments}
+                            {'comments_count' in post ? post.comments_count : post.comments}
                           </Button>
                         </div>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </WellnessCard>
           </div>
 
