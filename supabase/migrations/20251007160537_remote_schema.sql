@@ -107,7 +107,7 @@ $$;
 ALTER FUNCTION "public"."get_blocked_users"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."get_friend_suggestions"("current_user_id" "uuid", "suggestion_limit" integer) RETURNS TABLE("id" "uuid", "first_name" "text", "last_name" "text", "username" "text", "email" "text", "created_at" timestamp with time zone, "mutual_friends_count" bigint)
+CREATE OR REPLACE FUNCTION "public"."get_friend_suggestions"("current_user_id" "uuid", "suggestion_limit" integer) RETURNS TABLE("id" "uuid", "first_name" "text", "last_name" "text", "username" "text", "email" "text", "created_at" timestamp with time zone, "avatar_url" "text", "mutual_friends_count" bigint)
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
 BEGIN
@@ -171,6 +171,7 @@ BEGIN
     u.username,
     u.email,
     u.created_at,
+    u.avatar_url,
     COALESCE(swc.mutual_count, 1) AS mutual_friends_count
   FROM potential_suggestions ps
   JOIN users u ON ps.suggested_user_id = u.id

@@ -11,20 +11,36 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Search, Trophy, UserPlus, Crown, Medal, Award, Users,
-  Loader2, Share2, Edit, Trash2, FileText, Calendar, Zap, X,
-  Heart, MessageCircle, Send
+  Search, 
+  Trophy, 
+  Heart, 
+  MessageCircle, 
+  Share2, 
+  UserPlus,
+  Crown,
+  Medal,
+  Award,
+  Users,
+  Loader2,
+  Image as ImageIcon,
+  X,
+  Edit,
+  Trash2,
+  FileText,
+  Calendar,
+  Zap,
+  Send,
+  Check
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { userService, type SearchUser } from "@/services/userService";
 import { friendService } from "@/services/friendService";
-import { postService, type UserPost } from "@/services/postService";
+import { postService, type Post, type UserPost } from "@/services/postService";
 import { notificationService } from "@/services/notificationService";
 import { postInteractionService, type PostComment } from "@/services/postInteractionService";
 import { supabase } from "@/lib/supabase";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Mock data
@@ -45,11 +61,13 @@ export default function Social() {
   const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
-  const [suggestions, setSuggestions] = useState<Array<SearchUser & { mutual_friends_count: number }>>([]);
-  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isCreatingPost, setIsCreatingPost] = useState(false);
   const [posts, setPosts] = useState<UserPost[]>([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
-  const [isCreatingPost, setIsCreatingPost] = useState(false);
+  const [suggestions, setSuggestions] = useState<Array<SearchUser & { mutual_friends_count: number }>>([]);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [myPosts, setMyPosts] = useState<UserPost[]>([]);
   const [showMyPosts, setShowMyPosts] = useState(false);
   const [isLoadingMyPosts, setIsLoadingMyPosts] = useState(false);
@@ -184,11 +202,50 @@ export default function Social() {
     }
   };
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Invalid File",
+          description: "Please select an image file",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Validate file size (5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: "File Too Large",
+          description: "Image must be less than 5MB",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setSelectedImage(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+  };
+
   const handleCreatePost = async () => {
-    if (!newPost.trim()) {
+    if (!newPost.trim() && !selectedImage) {
       toast({
         title: "Empty Post",
-        description: "Please write something before sharing!",
+        description: "Please add some text or an image",
         variant: "destructive",
       });
       return;
@@ -196,23 +253,42 @@ export default function Social() {
 
     setIsCreatingPost(true);
     try {
-      const createdPost = await postService.createPost(newPost);
+      const createdPost = await postService.createPost(newPost.trim(), selectedImage || undefined);
+      
       toast({
         title: "Post Shared",
         description: "Your workout update has been shared with your friends!",
       });
+      
+      // Add new post to the beginning of the feed
+      setPosts([createdPost, ...posts]);
+      
+      // Clear form
       setNewPost("");
-      // Add the new post to the beginning of the posts array
-      setPosts(prev => [createdPost, ...prev]);
+      setSelectedImage(null);
+      setImagePreview(null);
     } catch (error: any) {
       console.error('❌ Error creating post:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to share your post. Please try again.",
+        description: error.message || "Failed to create post",
         variant: "destructive",
       });
     } finally {
       setIsCreatingPost(false);
+    }
+  };
+
+  const loadPosts = async () => {
+    setIsLoadingPosts(true);
+    try {
+      const fetchedPosts = await postService.getFeedPosts();
+      setPosts(fetchedPosts);
+    } catch (error: any) {
+      console.error('Failed to load posts:', error);
+      // Silently fail - user will see mock data
+    } finally {
+      setIsLoadingPosts(false);
     }
   };
 
@@ -668,6 +744,13 @@ export default function Social() {
     }
   }, [searchQuery]);
 
+  // Load posts on component mount
+  useEffect(() => {
+    if (!showPrivacyPrompt) {
+      loadPosts();
+    }
+  }, [showPrivacyPrompt]);
+
   // Handle navigation from notifications
   useEffect(() => {
     const state = location.state as { 
@@ -797,15 +880,65 @@ export default function Social() {
                 value={newPost}
                 onChange={(e) => setNewPost(e.target.value)}
                 className="mb-4"
+                rows={3}
               />
-              <div className="flex justify-end">
-                <Button variant="motivation" onClick={handleCreatePost} disabled={isCreatingPost}>
+              
+              {/* Image Preview */}
+              {imagePreview && (
+                <div className="relative mb-4">
+                  <img 
+                    src={imagePreview} 
+                    alt="Preview" 
+                    className="w-full h-64 object-cover rounded-lg"
+                  />
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="absolute top-2 right-2"
+                    onClick={handleRemoveImage}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+              
+              <div className="flex justify-between items-center">
+                <div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageSelect}
+                    className="hidden"
+                    id="image-upload"
+                  />
+                  <label htmlFor="image-upload">
+                    <Button 
+                      variant="zen" 
+                      size="sm" 
+                      type="button"
+                      onClick={() => document.getElementById('image-upload')?.click()}
+                    >
+                      <ImageIcon className="w-4 h-4 mr-2" />
+                      Add Photo
+                    </Button>
+                  </label>
+                </div>
+                <Button 
+                  variant="motivation" 
+                  onClick={handleCreatePost}
+                  disabled={isCreatingPost || (!newPost.trim() && !selectedImage)}
+                >
                   {isCreatingPost ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Sharing...
+                    </>
                   ) : (
-                    <Share2 className="w-4 h-4 mr-2" />
+                    <>
+                      <Share2 className="w-4 h-4 mr-2" />
+                      Share Update
+                    </>
                   )}
-                  {isCreatingPost ? "Sharing..." : "Share Update"}
                 </Button>
               </div>
             </WellnessCard>
@@ -1024,7 +1157,7 @@ export default function Social() {
                   {suggestions.map((user) => (
                     <div key={user.id} className="flex flex-col items-center p-3 hover:bg-muted/50 rounded-lg transition-colors space-y-3">
                       <Avatar className="w-12 h-12">
-                        <AvatarImage src={user.avatar} alt={user.username} />
+                        <AvatarImage src={user.avatar_url} alt={user.username} />
                         <AvatarFallback>
                           {user.first_name?.[0]}{user.last_name?.[0] || user.username?.[0]}
                         </AvatarFallback>

@@ -10,6 +10,7 @@ export type SearchUser = {
   last_name: string;
   email: string;
   created_at: string;
+  avatar_url?: string; // Optional avatar URL
   mutual_friends_count?: number; // Optional field for friend suggestions
 };
 
@@ -44,7 +45,7 @@ export const userService = {
       // Only include users who have social_privacy enabled (true or null, since null defaults to true)
       let queryBuilder = supabase
         .from('users')
-        .select('id, username, first_name, last_name, email, created_at')
+        .select('id, username, first_name, last_name, email, avatar_url, created_at')
         .or(`username.ilike.${searchTerm},first_name.ilike.${searchTerm},last_name.ilike.${searchTerm}`)
         .or('social_privacy.is.null,social_privacy.eq.true') // Include users with social_privacy = true or null
         .limit(limit);
@@ -84,7 +85,7 @@ export const userService = {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, username, first_name, last_name, email, created_at')
+        .select('id, username, first_name, last_name, email, avatar_url, created_at')
         .eq('id', userId)
         .maybeSingle();
 
@@ -113,7 +114,7 @@ export const userService = {
 
       const { data, error } = await supabase
         .from('users')
-        .select('id, username, first_name, last_name, email, created_at')
+        .select('id, username, first_name, last_name, email, avatar_url, created_at')
         .in('id', userIds);
 
       if (error) {
