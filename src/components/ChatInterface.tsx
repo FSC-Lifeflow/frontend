@@ -48,7 +48,18 @@ export function ChatInterface({ onClose }: ChatInterfaceProps) {
   const [isTyping, setIsTyping] = useState(false);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Loading messages that cycle while waiting for AI response
+  const loadingMessages = useMemo(() => [
+    "Analyzing your health data...",
+    "Checking your recent activity...",
+    "Reviewing your progress...",
+    "Consulting wellness insights...",
+    "Crafting a personalized response...",
+    "Almost there..."
+  ], []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -57,6 +68,20 @@ export function ChatInterface({ onClose }: ChatInterfaceProps) {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Cycle through loading messages while AI is typing
+  useEffect(() => {
+    if (!isTyping) {
+      setLoadingMessageIndex(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setLoadingMessageIndex((prev) => (prev + 1) % loadingMessages.length);
+    }, 5000); // Change message every 2 seconds
+
+    return () => clearInterval(interval);
+  }, [isTyping, loadingMessages.length]);
 
   const sendChatRequest = async (userMessage: string, conversationId: string | null = null, selectedEvent: CalendarEvent | null = null) => {
     try {
@@ -375,10 +400,15 @@ export function ChatInterface({ onClose }: ChatInterfaceProps) {
                   <Bot className="w-4 h-4 text-white" />
                 </div>
                 <div className="bg-muted rounded-lg p-3 animate-fade-in">
-                  <div className="flex gap-1">
-                    <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <div className="flex flex-col gap-2">
+                    <div className="flex gap-1">
+                      <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                    <p className="text-xs text-muted-foreground animate-pulse">
+                      {loadingMessages[loadingMessageIndex]}
+                    </p>
                   </div>
                 </div>
               </div>
