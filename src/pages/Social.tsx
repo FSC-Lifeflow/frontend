@@ -61,7 +61,8 @@ export default function Social() {
   const highlightedPostRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [newPost, setNewPost] = useState("");
-  const [showPrivacyPrompt, setShowPrivacyPrompt] = useState(!localStorage.getItem('socialOptIn'));
+  const [showPrivacyPrompt, setShowPrivacyPrompt] = useState(true);
+  const [isCheckingSocialPrivacy, setIsCheckingSocialPrivacy] = useState(true);
   const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
@@ -125,13 +126,42 @@ export default function Social() {
   const [isSendingMotivation, setIsSendingMotivation] = useState(false);
   const [isRequestingMotivation, setIsRequestingMotivation] = useState(false);
 
-  const handleOptIn = () => {
-    localStorage.setItem('socialOptIn', 'true');
-    setShowPrivacyPrompt(false);
-    toast({
-      title: "Social Features Enabled",
-      description: "You can now connect with friends and share your wellness journey!",
-    });
+  const handleOptIn = async () => {
+    try {
+      // Get current user
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+
+      // Update database social_privacy field
+      const { error } = await supabase
+        .from('users')
+        .update({ social_privacy: true })
+        .eq('id', currentUser.id);
+
+      if (error) {
+        console.error('❌ Failed to update social_privacy:', error);
+        throw error;
+      }
+
+      // Update localStorage as backup
+      localStorage.setItem('socialOptIn', 'true');
+      setShowPrivacyPrompt(false);
+      
+      toast({
+        title: "Social Features Enabled",
+        description: "You can now connect with friends and share your wellness journey!",
+      });
+    } catch (error: any) {
+      console.error('❌ Error enabling social features:', error);
+      toast({
+        title: "Error",
+        description: "Failed to enable social features. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSearch = async () => {
@@ -869,6 +899,53 @@ export default function Social() {
     }
   };
 
+  // Check social privacy setting on mount
+  useEffect(() => {
+    const checkSocialPrivacy = async () => {
+      try {
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        
+        if (!currentUser) {
+          setIsCheckingSocialPrivacy(false);
+          return;
+        }
+
+        // Check database for social_privacy setting
+        const { data: userData, error } = await supabase
+          .from('users')
+          .select('social_privacy')
+          .eq('id', currentUser.id)
+          .single();
+
+        if (error) {
+          console.error('❌ Error checking social_privacy:', error);
+          // If there's an error, check localStorage as fallback
+          const hasOptedIn = localStorage.getItem('socialOptIn') === 'true';
+          setShowPrivacyPrompt(!hasOptedIn);
+        } else {
+          // If social_privacy is true or null (defaults to true), don't show prompt
+          const socialPrivacy = userData?.social_privacy ?? null;
+          const hasOptedIn = socialPrivacy === true || socialPrivacy === null;
+          setShowPrivacyPrompt(!hasOptedIn);
+          
+          // Sync localStorage with database
+          if (hasOptedIn) {
+            localStorage.setItem('socialOptIn', 'true');
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error in checkSocialPrivacy:', error);
+        // Fallback to localStorage
+        const hasOptedIn = localStorage.getItem('socialOptIn') === 'true';
+        setShowPrivacyPrompt(!hasOptedIn);
+      } finally {
+        setIsCheckingSocialPrivacy(false);
+      }
+    };
+
+    checkSocialPrivacy();
+  }, []);
+
   // Load suggestions
   useEffect(() => {
     const loadSuggestions = async () => {
@@ -889,10 +966,10 @@ export default function Social() {
     };
 
     // Only load if user is authenticated and has opted into social features
-    if (!showPrivacyPrompt) {
+    if (!showPrivacyPrompt && !isCheckingSocialPrivacy) {
       loadSuggestions();
     }
-  }, [showPrivacyPrompt, toast]);
+  }, [showPrivacyPrompt, isCheckingSocialPrivacy, toast]);
 
   // Clear search results when search query is cleared
   useEffect(() => {
@@ -904,10 +981,10 @@ export default function Social() {
 
   // Load posts on component mount
   useEffect(() => {
-    if (!showPrivacyPrompt) {
+    if (!showPrivacyPrompt && !isCheckingSocialPrivacy) {
       loadPosts();
     }
-  }, [showPrivacyPrompt]);
+  }, [showPrivacyPrompt, isCheckingSocialPrivacy]);
 
   // Handle navigation from notifications
   useEffect(() => {
@@ -950,7 +1027,7 @@ export default function Social() {
   // Load friends for co-workout functionality
   useEffect(() => {
     const loadFriends = async () => {
-      if (!showPrivacyPrompt) {
+      if (!showPrivacyPrompt && !isCheckingSocialPrivacy) {
         setIsLoadingFriends(true);
         try {
           const friendsList = await friendService.getFriends();
@@ -963,7 +1040,7 @@ export default function Social() {
       }
     };
     loadFriends();
-  }, [showPrivacyPrompt]);
+  }, [showPrivacyPrompt, isCheckingSocialPrivacy]);
 
   useEffect(() => {
     const loadPosts = async () => {
@@ -984,14 +1061,27 @@ export default function Social() {
     };
 
     // Only load if user is authenticated and has opted into social features
-    if (!showPrivacyPrompt) {
+    if (!showPrivacyPrompt && !isCheckingSocialPrivacy) {
       loadPosts();
     }
-  }, [showPrivacyPrompt, toast]);
+  }, [showPrivacyPrompt, isCheckingSocialPrivacy, toast]);
 
   // If viewing a friend's profile, show FriendProfile component
   if (viewingFriendId) {
     return <FriendProfile friendId={viewingFriendId} onBack={() => setViewingFriendId(null)} />;
+  }
+
+  // Show loading state while checking social privacy
+  if (isCheckingSocialPrivacy) {
+    return (
+      <WellnessLayout>
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          </div>
+        </div>
+      </WellnessLayout>
+    );
   }
 
   if (showPrivacyPrompt) {
