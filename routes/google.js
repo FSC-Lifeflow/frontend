@@ -4,7 +4,7 @@ import fetch from 'node-fetch';
  * Google Calendar Routes - OAuth and API proxy
  * Handles Google Calendar authentication and event fetching
  */
-export function setupGoogleRoutes(app, supabase, tokenService, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI) {
+export function setupGoogleRoutes(app, supabase, tokenService, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, FRONTEND_URL) {
   
   // Generate Google OAuth authorization URL
   app.get('/api/google/auth-url', (req, res) => {
@@ -36,11 +36,11 @@ export function setupGoogleRoutes(app, supabase, tokenService, GOOGLE_CLIENT_ID,
       const { code, state } = req.query; // state contains userId
 
       if (!code || !state) {
-        return res.redirect('http://localhost:8080/settings?error=missing_params');
+        return res.redirect(`${FRONTEND_URL}/settings?error=missing_params`);
       }
 
       if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
-        return res.redirect('http://localhost:8080/settings?error=server_config');
+        return res.redirect(`${FRONTEND_URL}/settings?error=server_config`);
       }
 
       const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
@@ -58,7 +58,7 @@ export function setupGoogleRoutes(app, supabase, tokenService, GOOGLE_CLIENT_ID,
       if (!tokenResponse.ok) {
         const errorText = await tokenResponse.text();
         console.error('Google token exchange error:', errorText);
-        return res.redirect('http://localhost:8080/settings?error=token_exchange_failed');
+        return res.redirect(`${FRONTEND_URL}/settings?error=token_exchange_failed`);
       }
 
       const tokens = await tokenResponse.json();
@@ -78,14 +78,14 @@ export function setupGoogleRoutes(app, supabase, tokenService, GOOGLE_CLIENT_ID,
 
       if (dbError) {
         console.error('Database error saving Google tokens:', dbError);
-        return res.redirect('http://localhost:8080/settings?error=db_save_failed');
+        return res.redirect(`${FRONTEND_URL}/settings?error=db_save_failed`);
       }
 
       console.log(`Google Calendar connected successfully for user: ${state}`);
-      res.redirect('http://localhost:8080/settings?calendar=connected');
+      res.redirect(`${FRONTEND_URL}/settings?calendar=connected`);
     } catch (error) {
       console.error('Google OAuth callback error:', error);
-      res.redirect('http://localhost:8080/settings?error=callback_failed');
+      res.redirect(`${FRONTEND_URL}/settings?error=callback_failed`);
     }
   });
 
