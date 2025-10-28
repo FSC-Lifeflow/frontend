@@ -3,6 +3,8 @@ import { useLocation } from "react-router-dom";
 import { WellnessLayout } from "@/components/WellnessLayout";
 import { WellnessCard } from "@/components/WellnessCard";
 import FriendProfile from "@/components/FriendProfile";
+import { MentionText } from "@/components/MentionText";
+import { MentionTextarea } from "@/components/MentionTextarea";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -114,6 +116,12 @@ export default function Social() {
   
   // Friend profile viewing
   const [viewingFriendId, setViewingFriendId] = useState<string | null>(null);
+
+  const [showMotivationModal, setShowMotivationModal] = useState(false);
+  const [selectedMotivationFriends, setSelectedMotivationFriends] = useState<SearchUser[]>([]);
+  const [motivationMessage, setMotivationMessage] = useState("");
+  const [isSendingMotivation, setIsSendingMotivation] = useState(false);
+  const [isRequestingMotivation, setIsRequestingMotivation] = useState(false);
 
   const handleOptIn = () => {
     localStorage.setItem('socialOptIn', 'true');
@@ -711,6 +719,154 @@ export default function Social() {
     }
   };
 
+  // Handle sending motivation
+  const handleSendMotivation = async () => {
+    if (selectedMotivationFriends.length === 0) {
+      toast({
+        title: "No Friends Selected",
+        description: "Please select at least one friend to motivate.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!motivationMessage.trim()) {
+      toast({
+        title: "Empty Message",
+        description: "Please write a motivational message.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSendingMotivation(true);
+    try {
+      // Get current user info
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+
+      // Get current user's profile info
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('first_name, last_name, username')
+        .eq('id', currentUser.id)
+        .single();
+
+      // Create notifications for all selected friends
+      const notificationPromises = selectedMotivationFriends.map(friend =>
+        notificationService.createNotification({
+          user_id: friend.id,
+          type: 'motivation_received',
+          title: 'You received motivation!',
+          message: `${userProfile?.first_name || 'Someone'} ${userProfile?.last_name || ''} sent you motivation!`,
+          data: {
+            sender_id: currentUser.id,
+            sender_name: `${userProfile?.first_name} ${userProfile?.last_name}`,
+            sender_username: userProfile?.username,
+            motivation_message: motivationMessage
+          },
+          read: false
+        }).catch(err => {
+          console.warn(`⚠️ Could not create notification for ${friend.first_name}:`, err);
+          return null;
+        })
+      );
+      
+      await Promise.all(notificationPromises);
+
+      const friendNames = selectedMotivationFriends.length === 1
+        ? `${selectedMotivationFriends[0].first_name} ${selectedMotivationFriends[0].last_name}`
+        : `${selectedMotivationFriends.length} friends`;
+      
+      toast({
+        title: "Motivation Sent!",
+        description: `Your motivational message was sent to ${friendNames}.`,
+      });
+      
+      // Reset modal state
+      setShowMotivationModal(false);
+      setSelectedMotivationFriends([]);
+      setMotivationMessage("");
+    } catch (error: any) {
+      console.error('❌ Error sending motivation:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send motivation. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingMotivation(false);
+    }
+  };
+
+  // Handle requesting motivation from all friends
+  const handleRequestMotivation = async () => {
+    setIsRequestingMotivation(true);
+    try {
+      // Get current user info
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+
+      // Get current user's profile info
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('first_name, last_name, username')
+        .eq('id', currentUser.id)
+        .single();
+
+      // Get all friends
+      const friendsList = await friendService.getFriends();
+      
+      if (friendsList.length === 0) {
+        toast({
+          title: "No Friends",
+          description: "You don't have any friends to request motivation from yet.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create notifications for all friends
+      const notificationPromises = friendsList.map(friend =>
+        notificationService.createNotification({
+          user_id: friend.id,
+          type: 'motivation_request',
+          title: 'Motivation Request',
+          message: `${userProfile?.first_name || 'Someone'} ${userProfile?.last_name || ''} is requesting motivation!`,
+          data: {
+            requester_id: currentUser.id,
+            requester_name: `${userProfile?.first_name} ${userProfile?.last_name}`,
+            requester_username: userProfile?.username
+          },
+          read: false
+        }).catch(err => {
+          console.warn(`⚠️ Could not create notification for ${friend.first_name}:`, err);
+          return null;
+        })
+      );
+      
+      await Promise.all(notificationPromises);
+
+      toast({
+        title: "Request Sent!",
+        description: `Motivation request sent to ${friendsList.length} friend${friendsList.length === 1 ? '' : 's'}.`,
+      });
+    } catch (error: any) {
+      console.error('❌ Error requesting motivation:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to request motivation. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRequestingMotivation(false);
+    }
+  };
+
   // Load suggestions
   useEffect(() => {
     const loadSuggestions = async () => {
@@ -758,9 +914,16 @@ export default function Social() {
       highlightPostId?: string;
       viewSinglePost?: boolean;
       postId?: string;
+      viewFriendId?: string;
     } | null;
     
-    if (state?.viewSinglePost && state.postId) {
+    if (state?.viewFriendId) {
+      // View friend profile from mention click
+      setViewingFriendId(state.viewFriendId);
+      
+      // Clear the navigation state
+      window.history.replaceState({}, document.title);
+    } else if (state?.viewSinglePost && state.postId) {
       // Fetch and display single post
       fetchSinglePost(state.postId);
       
@@ -875,10 +1038,10 @@ export default function Social() {
                   My Posts
                 </Button>
               </div>
-              <Textarea
-                placeholder="Share an update about your wellness journey..."
+              <MentionTextarea
+                placeholder="Share an update about your wellness journey... (Type @ to mention friends)"
                 value={newPost}
-                onChange={(e) => setNewPost(e.target.value)}
+                onChange={setNewPost}
                 className="mb-4"
                 rows={3}
               />
@@ -946,7 +1109,7 @@ export default function Social() {
             {/* Activity Feed */}
             <WellnessCard>
               <h2 className="text-lg font-semibold mb-4">Friend Activity</h2>
-              <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+              <div className="space-y-4 max-h-[855px] overflow-y-auto pr-2">
                 {isLoadingPosts ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin text-primary" />
@@ -1001,7 +1164,11 @@ export default function Social() {
                               </Badge>
                             )}
                           </div>
-                          <p className="text-foreground mb-3">{post.content}</p>
+                          <MentionText 
+                            text={post.content} 
+                            className="text-foreground mb-3 block" 
+                            onMentionClick={setViewingFriendId}
+                          />
                           
                           {/* Like and Comment buttons */}
                           <div className="flex items-center gap-4">
@@ -1185,6 +1352,71 @@ export default function Social() {
                   No suggestions available right now.
                 </p>
               )}
+            </WellnessCard>
+
+            {/* Motivation System */}
+            <WellnessCard className="flex flex-col">
+              <div className="flex items-center gap-2 mb-4">
+                <Sparkles className="w-5 h-5 text-primary" />
+                <h3 className="font-semibold">Motivation Hub</h3>
+              </div>
+              
+              <div className="space-y-4 flex-1 flex flex-col">
+                <p className="text-sm text-muted-foreground">
+                  Need a boost? Request motivation from friends or AI, or spread positivity by motivating others!
+                </p>
+                
+                {/* Request Motivation Section */}
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium">Request Motivation</h4>
+                  <div className="space-y-2">
+                    <Button 
+                      variant="zen" 
+                      size="sm" 
+                      className="w-full"
+                      onClick={handleRequestMotivation}
+                      disabled={isRequestingMotivation}
+                    >
+                      {isRequestingMotivation ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Users className="w-4 h-4 mr-2" />
+                      )}
+                      {isRequestingMotivation ? "Sending..." : "Ask Friends for Motivation"}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full"
+                      onClick={() => {
+                        toast({
+                          title: "Coming Soon!",
+                          description: "AI motivation feature is under development.",
+                        });
+                      }}
+                    >
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Get AI Motivation
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Give Motivation Section */}
+                <div className="space-y-2 flex-1 flex flex-col justify-between space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    Motivate your friends and help them stay on track with their wellness goals!
+                  </p>
+                  <Button 
+                    variant="motivation" 
+                    size="sm" 
+                    className="w-full"
+                    onClick={() => setShowMotivationModal(true)}
+                  >
+                    <ThumbsUp className="w-4 h-4 mr-2" />
+                    Motivate a Friend
+                  </Button>
+                </div>
+              </div>
             </WellnessCard>
           </div>
         </div>
@@ -1855,6 +2087,162 @@ export default function Social() {
         </DialogContent>
       </Dialog>
 
+      {/* Motivate Friends Modal */}
+      <Dialog open={showMotivationModal} onOpenChange={(open) => {
+        setShowMotivationModal(open);
+        if (!open) {
+          setSelectedMotivationFriends([]);
+          setMotivationMessage("");
+        }
+      }}>
+        <DialogContent className="w-[95vw] max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <ThumbsUp className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
+              <span className="truncate">Send Motivation to Friends</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
+              Select friends and write a motivational message to brighten their day!
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-3 sm:space-y-4 py-2 sm:py-4">
+            {/* Friend Selection */}
+            {isLoadingFriends ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            ) : friends.length > 0 ? (
+              <>
+                <div className="space-y-2">
+                  <Label className="text-sm">Select Friends to Motivate</Label>
+                  <div className="border rounded-lg max-h-[200px] sm:max-h-[300px] overflow-y-auto">
+                    <div className="p-1 sm:p-2 space-y-1">
+                      {friends.map((friend) => {
+                        const isSelected = selectedMotivationFriends.some(f => f.id === friend.id);
+                        return (
+                          <div
+                            key={friend.id}
+                            className={cn(
+                              "flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg cursor-pointer transition-colors",
+                              isSelected ? "bg-primary/10 border-2 border-primary" : "hover:bg-muted/50 border-2 border-transparent"
+                            )}
+                            onClick={() => {
+                              setSelectedMotivationFriends(prev => {
+                                if (isSelected) {
+                                  return prev.filter(f => f.id !== friend.id);
+                                } else {
+                                  return [...prev, friend];
+                                }
+                              });
+                            }}
+                          >
+                            <div className={cn(
+                              "w-4 h-4 sm:w-5 sm:h-5 rounded border-2 flex items-center justify-center flex-shrink-0",
+                              isSelected ? "bg-primary border-primary" : "border-muted-foreground"
+                            )}>
+                              {isSelected && <Check className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-primary-foreground" />}
+                            </div>
+                            <Avatar className="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0">
+                              <AvatarFallback className="bg-gradient-primary text-white text-xs sm:text-sm">
+                                {friend.first_name[0]}{friend.last_name[0]}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs sm:text-sm font-medium truncate">
+                                {friend.first_name} {friend.last_name}
+                              </p>
+                              {friend.username && (
+                                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
+                                  @{friend.username}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+                
+                {selectedMotivationFriends.length > 0 && (
+                  <div className="p-2 sm:p-3 bg-muted rounded-lg">
+                    <p className="text-xs sm:text-sm font-medium mb-2">
+                      Selected ({selectedMotivationFriends.length}):
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                      {selectedMotivationFriends.map(friend => (
+                        <Badge
+                          key={friend.id}
+                          variant="secondary"
+                          className="px-1.5 py-0.5 sm:px-2 sm:py-1 text-[10px] sm:text-xs cursor-pointer hover:bg-destructive/10"
+                          onClick={() => setSelectedMotivationFriends(prev => prev.filter(f => f.id !== friend.id))}
+                        >
+                          <span className="truncate max-w-[120px] sm:max-w-none">
+                            {friend.first_name} {friend.last_name}
+                          </span>
+                          <X className="w-2.5 h-2.5 sm:w-3 sm:h-3 ml-1 flex-shrink-0" />
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Motivation Message */}
+                <div className="space-y-2">
+                  <Label htmlFor="motivation-message" className="text-sm">Your Motivational Message</Label>
+                  <Textarea
+                    id="motivation-message"
+                    placeholder="Write something inspiring to motivate your friends... 💪"
+                    value={motivationMessage}
+                    onChange={(e) => setMotivationMessage(e.target.value)}
+                    rows={4}
+                    className="resize-none text-sm"
+                  />
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">
+                    {motivationMessage.length} characters
+                  </p>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-6 sm:py-8">
+                <Users className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-muted-foreground mb-2 sm:mb-3" />
+                <p className="text-xs sm:text-sm text-muted-foreground px-4">
+                  You don't have any friends yet. Add friends to motivate them!
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowMotivationModal(false);
+                setSelectedMotivationFriends([]);
+                setMotivationMessage("");
+              }}
+              className="w-full sm:w-auto text-sm"
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="motivation"
+              disabled={selectedMotivationFriends.length === 0 || !motivationMessage.trim() || isSendingMotivation}
+              onClick={handleSendMotivation}
+              className="w-full sm:w-auto text-sm"
+            >
+              {isSendingMotivation ? (
+                <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-2 animate-spin" />
+              ) : (
+                <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-2" />
+              )}
+              {isSendingMotivation ? "Sending..." : "Send Motivation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* My Posts Dialog */}
       <Dialog open={showMyPosts} onOpenChange={setShowMyPosts}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -1932,7 +2320,11 @@ export default function Social() {
                               </Badge>
                             )}
                           </div>
-                          <p className="text-foreground mb-3">{post.content}</p>
+                          <MentionText 
+                            text={post.content} 
+                            className="text-foreground mb-3 block" 
+                            onMentionClick={setViewingFriendId}
+                          />
                           
                           {/* Like and Comment Stats */}
                           <div className="flex items-center gap-4 mb-3">

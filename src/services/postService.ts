@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { notificationService } from './notificationService';
 
 /**
  * User post data structure
@@ -25,6 +26,103 @@ export type UserPost = {
 };
 
 /**
+ * Extracts @mentions from text
+ * @param text - Text to extract mentions from
+ * @returns Array of usernames (without @ symbol)
+ */
+function extractMentions(text: string): string[] {
+  const mentionRegex = /@(\w+)/g;
+  const mentions: string[] = [];
+  let match;
+  
+  while ((match = mentionRegex.exec(text)) !== null) {
+    mentions.push(match[1]); // Get username without @ symbol
+  }
+  
+  return [...new Set(mentions)]; // Remove duplicates
+}
+
+/**
+ * Processes mentions in a post
+ * @param postId - ID of the post
+ * @param content - Content of the post
+ * @param authorId - ID of the post author
+ * @param authorName - Name of the post author
+ */
+async function processMentions(postId: string, content: string, authorId: string, authorName: string): Promise<void> {
+  try {
+    const usernames = extractMentions(content);
+    
+    if (usernames.length === 0) {
+      return;
+    }
+
+    console.log('📢 Found mentions:', usernames);
+
+    // Get user IDs for the mentioned usernames
+    const { data: mentionedUsers, error: usersError } = await supabase
+      .from('users')
+      .select('id, username')
+      .in('username', usernames);
+
+    if (usersError) {
+      console.error('❌ Failed to fetch mentioned users:', usersError);
+      return;
+    }
+
+    if (!mentionedUsers || mentionedUsers.length === 0) {
+      console.log('ℹ️ No valid users found for mentions');
+      return;
+    }
+
+    // Insert mentions into post_mentions table
+    const mentionsToInsert = mentionedUsers
+      .filter(user => user.id !== authorId) // Don't mention yourself
+      .map(user => ({
+        post_id: postId,
+        mentioned_user_id: user.id
+      }));
+
+    if (mentionsToInsert.length > 0) {
+      const { error: insertError } = await supabase
+        .from('post_mentions')
+        .insert(mentionsToInsert);
+
+      if (insertError) {
+        console.error('❌ Failed to insert mentions:', insertError);
+      } else {
+        console.log('✅ Mentions saved successfully');
+      }
+
+      // Send notifications to mentioned users
+      for (const user of mentionedUsers) {
+        if (user.id !== authorId) {
+          try {
+            await notificationService.createNotification({
+              user_id: user.id,
+              type: 'post_mention',
+              title: 'You were mentioned in a post',
+              message: `${authorName} mentioned you in their post`,
+              read: false,
+              data: {
+                post_id: postId,
+                author_id: authorId,
+                author_name: authorName
+              }
+            });
+            console.log(`✅ Notification sent to @${user.username}`);
+          } catch (notifError) {
+            console.error(`❌ Failed to send notification to @${user.username}:`, notifError);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error processing mentions:', error);
+  }
+}
+
+/**
  * Type alias for backward compatibility
  */
 export type Post = UserPost;
@@ -37,6 +135,54 @@ export type Post = UserPost;
  * - Uploading images to Supabase Storage
  */
 export const postService = {
+  /**
+   * Gets posts for a specific user
+   * @param userId - ID of the user to get posts for
+   * @param limit - Maximum number of posts to return
+   * @returns Array of user's posts
+   */
+  async getUserPosts(userId: string, limit: number = 5): Promise<UserPost[]> {
+    try {
+      // First get the posts
+      const { data: posts, error: postsError } = await supabase
+        .from('user_posts')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (postsError) throw postsError;
+      if (!posts || posts.length === 0) return [];
+
+      // Then get the user data for these posts
+      const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select('id, first_name, last_name, username, email')
+        .in('id', posts.map(p => p.user_id));
+
+      if (usersError) throw usersError;
+
+      // Combine the data
+      return posts.map(post => {
+        const user = users?.find(u => u.id === post.user_id);
+        return {
+          ...post,
+          is_edited: post.created_at !== post.updated_at,
+          user: user ? {
+            id: user.id,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            username: user.username,
+            email: user.email
+          } : undefined
+        };
+      });
+    } catch (error) {
+      console.error('Error fetching user posts:', error);
+      throw error;
+    }
+  },
+
   /**
    * Uploads an image to Supabase Storage
    * @param file - Image file to upload
@@ -142,6 +288,12 @@ export const postService = {
       
       if (userError) {
         console.error('⚠️ Failed to fetch user info:', userError);
+      }
+
+      // Process @mentions in the post
+      if (userInfo) {
+        const authorName = `${userInfo.first_name} ${userInfo.last_name}`;
+        await processMentions(data.id, content, currentUser.id, authorName);
       }
 
       return {
@@ -541,6 +693,18 @@ export const postService = {
 
       if (userError) {
         console.error('⚠️ Failed to fetch user info:', userError);
+      }
+
+      // Delete old mentions and process new ones
+      await supabase
+        .from('post_mentions')
+        .delete()
+        .eq('post_id', postId);
+
+      // Process @mentions in the updated post
+      if (userInfo) {
+        const authorName = `${userInfo.first_name} ${userInfo.last_name}`;
+        await processMentions(data.id, content, currentUser.id, authorName);
       }
 
       return {

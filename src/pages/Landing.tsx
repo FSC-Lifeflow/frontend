@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { WellnessCard } from "@/components/WellnessCard";
+import { userService } from "@/services/userService";
 import { 
   Calendar, 
   Brain, 
@@ -24,10 +25,52 @@ import {
 
 const Landing = () => {
   const [isVisible, setIsVisible] = useState(false);
+  const [totalUsers, setTotalUsers] = useState<number>(0);
+  const [totalSteps, setTotalSteps] = useState<number>(0);
+  const [aiWorkoutsThisWeek, setAiWorkoutsThisWeek] = useState<number>(0);
   const navigate = useNavigate();
 
   useEffect(() => {
     setIsVisible(true);
+    
+    // Fetch total user count
+    const fetchUserCount = async () => {
+      try {
+        const count = await userService.getTotalUserCount();
+        setTotalUsers(count);
+      } catch (error) {
+        console.error('Failed to fetch user count:', error);
+        // Set a placeholder value for unauthenticated users
+        // This will show "Join our community" instead of a count
+        setTotalUsers(-1);
+      }
+    };
+    
+    // Fetch total steps today
+    const fetchTotalSteps = async () => {
+      try {
+        const steps = await userService.getTotalStepsToday();
+        setTotalSteps(steps);
+      } catch (error) {
+        console.error('Failed to fetch total steps:', error);
+        // Keep default value of 0 on error
+      }
+    };
+    
+    // Fetch AI workouts this week
+    const fetchAIWorkouts = async () => {
+      try {
+        const count = await userService.getAIWorkoutsThisWeek();
+        setAiWorkoutsThisWeek(count);
+      } catch (error) {
+        console.error('Failed to fetch AI workouts:', error);
+        // Keep default value of 0 on error
+      }
+    };
+    
+    fetchUserCount();
+    fetchTotalSteps();
+    fetchAIWorkouts();
   }, []);
 
   const handleStartFitnessJourney = () => {
@@ -84,19 +127,17 @@ const Landing = () => {
                     <div className="w-3 h-3 bg-secondary rounded-full animate-pulse"></div>
                     <span className="text-sm text-muted-foreground">AI Scheduling Active</span>
                   </div>
-                  <div className="space-y-2">
-                    <div className="h-2 bg-primary/20 rounded-full">
-                      <div className="h-2 bg-gradient-primary rounded-full w-3/4 animate-pulse"></div>
-                    </div>
-                    <div className="text-xs text-muted-foreground">Weekly Goal: 75%</div>
-                  </div>
+                  <div className="text-2xl font-bold text-foreground">{aiWorkoutsThisWeek}</div>
+                  <div className="text-xs text-muted-foreground">Workouts scheduled this week</div>
                 </div>
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
                     <Heart className="w-4 h-4 text-secondary" />
                     <span className="text-sm">Health Insights</span>
                   </div>
-                  <div className="text-2xl font-bold text-foreground">8.2k</div>
+                  <div className="text-2xl font-bold text-foreground">
+                    {totalSteps >= 1000 ? `${(totalSteps / 1000).toFixed(1)}k` : totalSteps}
+                  </div>
                   <div className="text-xs text-muted-foreground">Steps today</div>
                 </div>
                 <div className="space-y-4">
@@ -104,8 +145,12 @@ const Landing = () => {
                     <Users className="w-4 h-4 text-accent" />
                     <span className="text-sm">Social</span>
                   </div>
-                  <div className="text-2xl font-bold text-foreground">12</div>
-                  <div className="text-xs text-muted-foreground">Active friends</div>
+                  <div className="text-2xl font-bold text-foreground">
+                    {totalUsers >= 0 ? totalUsers : '—'}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {totalUsers >= 0 ? 'Total users' : 'Join our community'}
+                  </div>
                 </div>
               </div>
             </WellnessCard>
@@ -135,8 +180,8 @@ const Landing = () => {
               </p>
             </WellnessCard>
             
-            <WellnessCard variant="glass" className="text-center hover:scale-105 transition-all duration-300 border-l-4 border-l-secondary">
-              <BarChart3 className="w-12 h-12 text-secondary mx-auto mb-4" />
+            <WellnessCard variant="glass" className="text-center hover:scale-105 transition-all duration-300 border-l-4 border-l-primary">
+              <BarChart3 className="w-12 h-12 text-primary mx-auto mb-4" />
               <h3 className="text-xl font-semibold mb-3">Data Overload</h3>
               <p className="text-muted-foreground">
                 Overwhelmed by health data with no actionable insights
@@ -156,7 +201,6 @@ const Landing = () => {
             <div className="inline-flex items-center gap-4 bg-gradient-primary px-8 py-4 rounded-full text-white font-semibold">
               <Zap className="w-5 h-5" />
               LifeFlow's intelligent automation solves these challenges
-              <ArrowRight className="w-5 h-5" />
             </div>
           </div>
         </div>
@@ -260,7 +304,7 @@ const Landing = () => {
                 <h3 className="text-2xl font-bold text-foreground mb-2">
                   Social Accountability Agent
                 </h3>
-                <p className="text-lg font-semibold text-accent">
+                <p className="text-lg font-semibold text-primary">
                   Stay Motivated With Intelligent Social Support
                 </p>
               </div>
@@ -454,19 +498,31 @@ const Landing = () => {
                     <Users className="w-5 h-5 text-primary" />
                     Social Feed
                   </h3>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                      <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center text-white text-xs font-bold">A</div>
-                      <div className="flex-1">
-                        <div className="text-sm font-medium">Alex completed a 5K run!</div>
-                        <div className="text-xs text-muted-foreground">2 hours ago</div>
+                  <div className="space-y-3">
+                    <div className="p-3 bg-muted/50 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">A</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm font-medium">Alex Chen</span>
+                            <span className="text-xs text-muted-foreground">@alexc</span>
+                          </div>
+                          <p className="text-sm text-foreground mb-1">Just crushed a 30-minute HIIT session! Feeling energized 💪</p>
+                          <div className="text-xs text-muted-foreground">2 hours ago</div>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                      <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white text-xs font-bold">M</div>
-                      <div className="flex-1">
-                        <div className="text-sm font-medium">Maya completed a workout!</div>
-                        <div className="text-xs text-muted-foreground">4 hours ago</div>
+                    <div className="p-3 bg-muted/50 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">M</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm font-medium">Maya Rodriguez</span>
+                            <span className="text-xs text-muted-foreground">@mayar</span>
+                          </div>
+                          <p className="text-sm text-foreground mb-1">Morning yoga complete! Starting the day with mindfulness 🧘‍♀️</p>
+                          <div className="text-xs text-muted-foreground">5 hours ago</div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -516,8 +572,13 @@ const Landing = () => {
               Start Your Fitness Revolution
               <ArrowRight className="ml-2" />
             </Button>
-            <Button variant="outline" size="lg" className="text-lg px-8 py-4 h-auto border-white/30 text-secondary hover:bg-white/10">
-              Get Early Access Updates
+            <Button 
+              variant="outline" 
+              size="lg" 
+              className="text-lg px-8 py-4 h-auto border-white/30 text-primary hover:bg-white/10"
+              onClick={() => navigate('/signin')}
+            >
+              Sign In
             </Button>
           </div>
 
