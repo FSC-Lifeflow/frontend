@@ -32,7 +32,9 @@ import {
   Calendar,
   Zap,
   Send,
-  Check
+  Check,
+  Sparkles,
+  ThumbsUp
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { userService, type SearchUser } from "@/services/userService";
