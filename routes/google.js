@@ -305,6 +305,13 @@ export function setupGoogleRoutes(app, supabase, tokenService, GOOGLE_CLIENT_ID,
       });
     } catch (error) {
       console.error('Calendar events fetch error:', error);
+      if (error.code === 'TOKEN_EXPIRED') {
+        return res.status(401).json({ 
+          error: 'Google Calendar connection expired', 
+          message: error.message,
+          reconnect: true 
+        });
+      }
       if (error.message.includes('not connected')) {
         return res.status(401).json({ error: 'Google Calendar not connected' });
       }
