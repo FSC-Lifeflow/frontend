@@ -11,6 +11,7 @@ interface MentionTextareaProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  rows?: number;
 }
 
 export function MentionTextarea({
@@ -18,7 +19,8 @@ export function MentionTextarea({
   onChange,
   placeholder,
   className,
-  disabled
+  disabled,
+  rows
 }: MentionTextareaProps) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [friends, setFriends] = useState<SearchUser[]>([]);
@@ -174,6 +176,7 @@ export function MentionTextarea({
         placeholder={placeholder}
         className={className}
         disabled={disabled}
+        rows={rows}
       />
       
       {showDropdown && (
