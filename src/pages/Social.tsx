@@ -44,6 +44,7 @@ import { postService, type Post, type UserPost } from "@/services/postService";
 import { notificationService } from "@/services/notificationService";
 import { postInteractionService, type PostComment } from "@/services/postInteractionService";
 import { supabase } from "@/lib/supabase";
+import { API_BASE_URL } from "@/lib/config";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
@@ -1098,7 +1099,7 @@ export default function Social() {
             maxResults: '50',
           });
           
-          const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}/api/google/calendar/events?${params.toString()}`);
+          const response = await fetch(`${API_BASE_URL}/api/google/calendar/events?${params.toString()}`);
           
           if (response.ok) {
             const data = await response.json();
