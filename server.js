@@ -23,6 +23,7 @@ const FITBIT_CLIENT_SECRET = process.env.FITBIT_CLIENT_SECRET;
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3001/auth/google/callback';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
 
 // Initialize services - Use service role key for backend (bypasses RLS)
@@ -44,7 +45,7 @@ setupChatRoutes(app, tokenService, N8N_WEBHOOK_URL, supabase);
 setupFitbitRoutes(app, supabase, tokenService, FITBIT_CLIENT_ID, FITBIT_CLIENT_SECRET);
 
 // Google Calendar OAuth and API routes
-setupGoogleRoutes(app, supabase, tokenService, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI);
+setupGoogleRoutes(app, supabase, tokenService, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, FRONTEND_URL);
 
 // Fitbit data routes for n8n integration
 setupFitbitDataRoutes(app, supabase, N8N_WEBHOOK_URL);

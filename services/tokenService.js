@@ -114,6 +114,21 @@ export class TokenService {
 
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { error: 'unknown', error_description: errorText };
+      }
+
+      // Check if it's an invalid_grant error (revoked or expired refresh token)
+      if (errorData.error === 'invalid_grant') {
+        const error = new Error('Refresh token is invalid or has been revoked');
+        error.code = 'INVALID_GRANT';
+        error.details = errorData;
+        throw error;
+      }
+
       throw new Error(`Token refresh failed: ${errorText}`);
     }
 
@@ -181,19 +196,35 @@ export class TokenService {
     if (this.isTokenExpired(tokenData.expires_at)) {
       console.log(`Token expired for user ${userId}, refreshing...`);
       
-      const newTokens = await this.refreshGoogleToken(tokenData.refresh_token);
+      try {
+        const newTokens = await this.refreshGoogleToken(tokenData.refresh_token);
 
-      // Update Supabase with new token
-      await this.supabase
-        .from('google_calendar_tokens')
-        .update({
-          access_token: newTokens.access_token,
-          expires_at: newTokens.expires_at,
-        })
-        .eq('user_id', userId);
+        // Update Supabase with new token
+        await this.supabase
+          .from('google_calendar_tokens')
+          .update({
+            access_token: newTokens.access_token,
+            expires_at: newTokens.expires_at,
+          })
+          .eq('user_id', userId);
 
-      console.log(`Token refreshed and updated for user ${userId}`);
-      return newTokens.access_token;
+        console.log(`Token refreshed and updated for user ${userId}`);
+        return newTokens.access_token;
+      } catch (refreshError) {
+        // If refresh token is invalid, delete the token from database
+        if (refreshError.code === 'INVALID_GRANT') {
+          console.error(`Invalid refresh token for user ${userId}, removing from database`);
+          await this.supabase
+            .from('google_calendar_tokens')
+            .delete()
+            .eq('user_id', userId);
+          
+          const error = new Error('Google Calendar connection expired. Please reconnect.');
+          error.code = 'TOKEN_EXPIRED';
+          throw error;
+        }
+        throw refreshError;
+      }
     }
 
     return tokenData.access_token;

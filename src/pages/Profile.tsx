@@ -454,6 +454,8 @@ export default function Profile() {
         return "💪";
       case "workout_invitation":
         return "📅";
+      case "scheduled_workout_invitation":
+        return "📆";
       case "workout_challenge":
         return "⚡";
       case "motivation_received":
@@ -1205,6 +1207,104 @@ export default function Profile() {
                                       toast({
                                         title: "Coming Soon",
                                         description: "Calendar integration is not yet implemented.",
+                                      });
+                                      await handleRemoveNotification(notification.id);
+                                    }}
+                                    className="h-7 px-3 text-xs flex-1 sm:flex-none"
+                                  >
+                                    <Check className="w-3 h-3 mr-1" />
+                                    Accept
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleRemoveNotification(notification.id)}
+                                    className="h-7 px-3 text-xs flex-1 sm:flex-none"
+                                  >
+                                    <X className="w-3 h-3 mr-1" />
+                                    Decline
+                                  </Button>
+                                </div>
+                              </>
+                            )}
+
+                            {/* Scheduled Workout Invitation Actions */}
+                            {notification.type === 'scheduled_workout_invitation' && (
+                              <>
+                                {/* Expandable Details Button */}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setExpandedNotifications(prev => {
+                                      const newSet = new Set(prev);
+                                      if (newSet.has(notification.id)) {
+                                        newSet.delete(notification.id);
+                                      } else {
+                                        newSet.add(notification.id);
+                                      }
+                                      return newSet;
+                                    });
+                                  }}
+                                  className="h-7 px-2 text-xs mt-2 w-full justify-between"
+                                >
+                                  <span>View Event Details</span>
+                                  {expandedNotifications.has(notification.id) ? (
+                                    <ChevronUp className="w-4 h-4" />
+                                  ) : (
+                                    <ChevronDown className="w-4 h-4" />
+                                  )}
+                                </Button>
+
+                                {/* Expanded Event Details */}
+                                {expandedNotifications.has(notification.id) && notification.data && (
+                                  <div className="mt-2 p-3 bg-muted/50 rounded-md space-y-2 text-xs">
+                                    {notification.data.event_summary && (
+                                      <div className="flex items-center gap-2">
+                                        <FileText className="w-3 h-3 text-muted-foreground" />
+                                        <span className="font-medium">Event:</span>
+                                        <span>{notification.data.event_summary}</span>
+                                      </div>
+                                    )}
+                                    {notification.data.event_start && (
+                                      <div className="flex items-center gap-2">
+                                        <Calendar className="w-3 h-3 text-muted-foreground" />
+                                        <span className="font-medium">Start:</span>
+                                        <span>{new Date(notification.data.event_start).toLocaleString()}</span>
+                                      </div>
+                                    )}
+                                    {notification.data.event_end && (
+                                      <div className="flex items-center gap-2">
+                                        <Clock className="w-3 h-3 text-muted-foreground" />
+                                        <span className="font-medium">End:</span>
+                                        <span>{new Date(notification.data.event_end).toLocaleString()}</span>
+                                      </div>
+                                    )}
+                                    {notification.data.event_location && (
+                                      <div className="flex items-center gap-2">
+                                        <MapPin className="w-3 h-3 text-muted-foreground" />
+                                        <span className="font-medium">Location:</span>
+                                        <span>{notification.data.event_location}</span>
+                                      </div>
+                                    )}
+                                    {notification.data.event_description && (
+                                      <div className="flex items-start gap-2">
+                                        <FileText className="w-3 h-3 text-muted-foreground mt-0.5" />
+                                        <span className="font-medium">Description:</span>
+                                        <span className="flex-1">{notification.data.event_description}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                <div className="flex flex-wrap gap-2 mt-3">
+                                  <Button
+                                    size="sm"
+                                    variant="wellness"
+                                    onClick={async () => {
+                                      toast({
+                                        title: "Invitation Accepted",
+                                        description: "You've accepted the workout invitation!",
                                       });
                                       await handleRemoveNotification(notification.id);
                                     }}

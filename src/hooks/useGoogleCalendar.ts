@@ -131,6 +131,19 @@ export function useGoogleCalendar() {
       
       if (!response.ok) {
         if (response.status === 401) {
+          const errorData = await response.json().catch(() => ({}));
+          
+          // Check if token expired and needs reconnection
+          if (errorData.reconnect) {
+            setState(prev => ({ 
+              ...prev, 
+              isAuthenticated: false,
+              error: 'Google Calendar connection expired. Please reconnect.',
+              isLoading: false 
+            }));
+            return;
+          }
+          
           setState(prev => ({ 
             ...prev, 
             isAuthenticated: false,
@@ -238,6 +251,19 @@ export function useGoogleCalendar() {
       
       if (!response.ok) {
         if (response.status === 401) {
+          const errorData = await response.json().catch(() => ({}));
+          
+          // Check if token expired and needs reconnection
+          if (errorData.reconnect) {
+            setState(prev => ({ 
+              ...prev, 
+              isAuthenticated: false,
+              error: 'Google Calendar connection expired. Please reconnect.',
+              isLoading: false 
+            }));
+            return;
+          }
+          
           setState(prev => ({ 
             ...prev, 
             isAuthenticated: false,
