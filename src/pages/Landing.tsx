@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { WellnessCard } from "@/components/WellnessCard";
@@ -23,12 +23,55 @@ import {
   ChevronDown
 } from "lucide-react";
 
+// Custom hook for scroll animations
+const useScrollAnimation = (options: { threshold?: number; rootMargin?: string; triggerOnce?: boolean } = {}) => {
+  const { threshold = 0.1, rootMargin = '0px 0px -100px 0px', triggerOnce = true } = options;
+  const [isVisible, setIsVisible] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          if (triggerOnce) {
+            observer.unobserve(element);
+          }
+        } else if (!triggerOnce) {
+          setIsVisible(false);
+        }
+      },
+      { threshold, rootMargin }
+    );
+
+    observer.observe(element);
+    return () => {
+      if (element) observer.unobserve(element);
+    };
+  }, [threshold, rootMargin, triggerOnce]);
+
+  return { ref, isVisible };
+};
+
 const Landing = () => {
   const [isVisible, setIsVisible] = useState(false);
   const [totalUsers, setTotalUsers] = useState<number>(0);
   const [totalSteps, setTotalSteps] = useState<number>(0);
   const [aiWorkoutsThisWeek, setAiWorkoutsThisWeek] = useState<number>(0);
   const navigate = useNavigate();
+  
+  // Scroll animation refs for each section
+  const problemSection = useScrollAnimation();
+  const aiAgentsSection = useScrollAnimation();
+  const smartCalendarAgentSection = useScrollAnimation();
+  const healthDataIntelligenceAgentSection = useScrollAnimation();
+  const socialAccountabilityAgentSection = useScrollAnimation();
+  const workflowSection = useScrollAnimation();
+  const dashboardSection = useScrollAnimation();
+  const ctaSection = useScrollAnimation();
 
   useEffect(() => {
     setIsVisible(true);
@@ -92,7 +135,7 @@ const Landing = () => {
           <div className="mb-8">
             <h1 className="text-5xl md:text-7xl font-bold text-foreground mb-6 leading-tight">
               Your AI-Powered
-              <span className="block bg-gradient-primary bg-clip-text text-transparent">
+              <span className="block bg-gradient-primary bg-clip-text text-transparent animate-pulse-scale">
                 Fitness Revolution
               </span>
             </h1>
@@ -163,7 +206,14 @@ const Landing = () => {
       </section>
 
       {/* Problem Statement Section */}
-      <section className="py-20 px-4">
+      <section 
+        ref={problemSection.ref}
+        className={`py-20 px-4 transition-all duration-1000 ${
+          problemSection.isVisible 
+            ? 'opacity-100 translate-y-0' 
+            : 'opacity-0 translate-y-10'
+        }`}
+      >
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
@@ -207,7 +257,14 @@ const Landing = () => {
       </section>
 
       {/* AI Agents Showcase */}
-      <section className="py-20 px-4 bg-muted/30">
+      <section 
+        ref={aiAgentsSection.ref}
+        className={`py-20 px-4 bg-muted/30 transition-all duration-1000 delay-150 ${
+          aiAgentsSection.isVisible 
+            ? 'opacity-100 translate-y-0' 
+            : 'opacity-0 translate-y-10'
+        }`}
+      >
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
@@ -220,133 +277,165 @@ const Landing = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Smart Calendar Agent */}
-            <WellnessCard variant="default" className="group hover:shadow-glow transition-all duration-500 cursor-pointer">
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
-                  <Calendar className="w-8 h-8 text-white" />
+            <section 
+              ref={smartCalendarAgentSection.ref}
+              className={`py-20 px-4 transition-all duration-1000 delay-250 ${
+                smartCalendarAgentSection.isVisible 
+                  ? 'opacity-100 translate-y-0' 
+                  : 'opacity-0 translate-y-10'
+              }`}
+            >
+              <WellnessCard variant="default" className="group hover:shadow-glow transition-all duration-500 cursor-pointer">
+                <div className="text-center mb-6">
+                  <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
+                    <Calendar className="w-8 h-8 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-foreground mb-2">
+                    Smart Calendar Scheduling Agent
+                  </h3>
+                  <p className="text-lg font-semibold text-primary">
+                    Never Miss the Perfect Workout Time
+                  </p>
                 </div>
-                <h3 className="text-2xl font-bold text-foreground mb-2">
-                  Smart Calendar Scheduling Agent
-                </h3>
-                <p className="text-lg font-semibold text-primary">
-                  Never Miss the Perfect Workout Time
+                
+                <p className="text-muted-foreground mb-6 leading-relaxed">
+                  Analyzes your Google Calendar availability, workout history, and recovery patterns 
+                  to automatically schedule optimal workout times. Adapts to weather changes and life events.
                 </p>
-              </div>
-              
-              <p className="text-muted-foreground mb-6 leading-relaxed">
-                Analyzes your Google Calendar availability, workout history, and recovery patterns 
-                to automatically schedule optimal workout times. Adapts to weather changes and life events.
-              </p>
-              
-              <div className="bg-muted/50 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">This Week</span>
-                  <span className="text-xs text-muted-foreground">AI Optimized</span>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-primary rounded-full"></div>
-                    <span className="text-sm">Mon 7:00 AM - Morning Cardio</span>
+                
+                <div className="bg-muted/50 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium">This Week</span>
+                    <span className="text-xs text-muted-foreground">AI Optimized</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-secondary rounded-full"></div>
-                    <span className="text-sm">Wed 6:30 PM - Strength Training</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-accent rounded-full"></div>
-                    <span className="text-sm">Fri 8:00 AM - Yoga (Weather: Rainy)</span>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-primary rounded-full"></div>
+                      <span className="text-sm">Mon 7:00 AM - Morning Cardio</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-secondary rounded-full"></div>
+                      <span className="text-sm">Wed 6:30 PM - Strength Training</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-accent rounded-full"></div>
+                      <span className="text-sm">Fri 8:00 AM - Yoga (Weather: Rainy)</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </WellnessCard>
+              </WellnessCard>
+            </section>
+            
 
             {/* Health Data Intelligence Agent */}
-            <WellnessCard variant="default" className="group hover:shadow-glow transition-all duration-500 cursor-pointer">
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-gradient-motivation rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
-                  <Brain className="w-8 h-8 text-white" />
+            <section 
+              ref={healthDataIntelligenceAgentSection.ref}
+              className={`py-20 px-4 transition-all duration-1000 delay-200 ${
+                healthDataIntelligenceAgentSection.isVisible 
+                  ? 'opacity-100 translate-y-0' 
+                  : 'opacity-0 translate-y-10'
+              }`}
+            >
+              <WellnessCard variant="default" className="group hover:shadow-glow transition-all duration-500 cursor-pointer">
+                <div className="text-center mb-6">
+                  <div className="w-16 h-16 bg-gradient-motivation rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
+                    <Brain className="w-8 h-8 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-foreground mb-2">
+                    Health Data Intelligence Agent
+                  </h3>
+                  <p className="text-lg font-semibold text-secondary">
+                    Transform Data Into Actionable Fitness Insights
+                  </p>
                 </div>
-                <h3 className="text-2xl font-bold text-foreground mb-2">
-                  Health Data Intelligence Agent
-                </h3>
-                <p className="text-lg font-semibold text-secondary">
-                  Transform Data Into Actionable Fitness Insights
+                
+                <p className="text-muted-foreground mb-6 leading-relaxed">
+                  Processes Fitbit data and manual inputs through advanced AI to generate personalized 
+                  health insights, identify performance patterns, and recommend optimization strategies.
                 </p>
-              </div>
-              
-              <p className="text-muted-foreground mb-6 leading-relaxed">
-                Processes Fitbit data and manual inputs through advanced AI to generate personalized 
-                health insights, identify performance patterns, and recommend optimization strategies.
-              </p>
-              
-              <div className="bg-muted/50 rounded-lg p-4">
-                <div className="mb-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium">Recovery Score</span>
-                    <span className="text-sm font-bold text-primary">87%</span>
+                
+                <div className="bg-muted/50 rounded-lg p-4">
+                  <div className="mb-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-medium">Recovery Score</span>
+                      <span className="text-sm font-bold text-primary">87%</span>
+                    </div>
+                    <div className="h-2 bg-muted rounded-full">
+                      <div className="h-2 bg-gradient-primary rounded-full w-[87%]"></div>
+                    </div>
                   </div>
-                  <div className="h-2 bg-muted rounded-full">
-                    <div className="h-2 bg-gradient-primary rounded-full w-[87%]"></div>
+                  <div className="text-xs text-muted-foreground">
+                    💡 AI Insight: Your sleep quality improved 15% this week. Consider maintaining current bedtime routine.
                   </div>
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  💡 AI Insight: Your sleep quality improved 15% this week. Consider maintaining current bedtime routine.
-                </div>
-              </div>
-            </WellnessCard>
+              </WellnessCard>
+            </section>
 
             {/* Social Accountability Agent */}
-            <WellnessCard variant="default" className="group hover:shadow-glow transition-all duration-500 cursor-pointer">
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
-                  <Users className="w-8 h-8 text-white" />
+            <section 
+              ref={socialAccountabilityAgentSection.ref}
+              className={`py-20 px-4 transition-all duration-1000 delay-150 ${
+                socialAccountabilityAgentSection.isVisible 
+                  ? 'opacity-100 translate-y-0' 
+                  : 'opacity-0 translate-y-10'
+              }`}
+            >
+              <WellnessCard variant="default" className="group hover:shadow-glow transition-all duration-500 cursor-pointer">
+                <div className="text-center mb-6">
+                  <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
+                    <Users className="w-8 h-8 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-foreground mb-2">
+                    Social Accountability Agent
+                  </h3>
+                  <p className="text-lg font-semibold text-primary">
+                    Stay Motivated With Intelligent Social Support
+                  </p>
                 </div>
-                <h3 className="text-2xl font-bold text-foreground mb-2">
-                  Social Accountability Agent
-                </h3>
-                <p className="text-lg font-semibold text-primary">
-                  Stay Motivated With Intelligent Social Support
+                
+                <p className="text-muted-foreground mb-6 leading-relaxed">
+                  Provides personalized workout reminders, motivational messages, and optional friend 
+                  notifications to keep you accountable. Features leaderboards and social challenges.
                 </p>
-              </div>
-              
-              <p className="text-muted-foreground mb-6 leading-relaxed">
-                Provides personalized workout reminders, motivational messages, and optional friend 
-                notifications to keep you accountable. Features leaderboards and social challenges.
-              </p>
-              
-              <div className="bg-muted/50 rounded-lg p-4">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center text-white text-xs font-bold">🎯</div>
-                    <div>
-                      <div className="text-sm font-medium">Goal achieved!</div>
-                      <div className="text-xs text-muted-foreground">Keep up the great work!</div>
+                
+                <div className="bg-muted/50 rounded-lg p-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center text-white text-xs font-bold">🎯</div>
+                      <div>
+                        <div className="text-sm font-medium">Goal achieved!</div>
+                        <div className="text-xs text-muted-foreground">Keep up the great work!</div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white text-xs font-bold">👥</div>
-                    <div>
-                      <div className="text-sm font-medium">3 friends need motivation</div>
-                      <div className="text-xs text-muted-foreground">Send them encouragement?</div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white text-xs font-bold">👥</div>
+                      <div>
+                        <div className="text-sm font-medium">3 friends need motivation</div>
+                        <div className="text-xs text-muted-foreground">Send them encouragement?</div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </WellnessCard>
+              </WellnessCard>
+            </section>
           </div>
         </div>
       </section>
 
       {/* Workflow Automation Showcase */}
-      <section className="py-20 px-4">
+      <section 
+        ref={workflowSection.ref}
+        className={`py-20 px-4 transition-all duration-1000 delay-300 ${
+          workflowSection.isVisible 
+            ? 'opacity-100 translate-y-0' 
+            : 'opacity-0 translate-y-10'
+        }`}
+      >
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
               Intelligent Automation Powered by n8n Workflows
             </h2>
-            <p className="text-xl text-muted-foreground">
-              Advanced AI orchestration through OpenAI and Claude APIs
-            </p>
           </div>
 
           <WellnessCard variant="glass" className="p-8">
@@ -430,7 +519,14 @@ const Landing = () => {
       </section>
 
       {/* Dashboard Preview */}
-      <section className="py-20 px-4 bg-muted/30">
+      <section 
+        ref={dashboardSection.ref}
+        className={`py-20 px-4 bg-muted/30 transition-all duration-1000 ${
+          dashboardSection.isVisible 
+            ? 'opacity-100 translate-y-0' 
+            : 'opacity-0 translate-y-10'
+        }`}
+      >
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
@@ -552,7 +648,14 @@ const Landing = () => {
       </section>
 
       {/* Call to Action */}
-      <section className="py-20 px-4 bg-gradient-primary relative overflow-hidden">
+      <section 
+        ref={ctaSection.ref}
+        className={`py-20 px-4 bg-gradient-primary relative overflow-hidden transition-all duration-1000 delay-200 ${
+          ctaSection.isVisible 
+            ? 'opacity-100 translate-y-0' 
+            : 'opacity-0 translate-y-10'
+        }`}
+      >
         <div className="absolute inset-0 bg-black/10"></div>
         <div className="relative z-10 max-w-4xl mx-auto text-center text-white">
           <h2 className="text-4xl md:text-6xl font-bold mb-6">
