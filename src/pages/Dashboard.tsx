@@ -4,6 +4,7 @@ import { CaloriesChart } from "../components/CaloriesChart";
 import { GoogleCalendar } from "../components/GoogleCalendar";
 import { FitbitData } from "../components/FitbitData";
 import { ManualWorkoutDialog } from "../components/ManualWorkoutDialog";
+import { UpNextWorkouts } from "../components/UpNextWorkouts";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -15,12 +16,33 @@ import {
   Heart,
   Sun,
   Clock,
-  ExternalLink
+  ExternalLink,
+  Sunrise,
+  Sunset,
+  Moon
 } from "lucide-react";
 
 function Dashboard() {
   
   const { user } = useAuth();
+
+  // Get time-based greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    
+    if (hour >= 5 && hour < 12) {
+      return { text: "Good morning", icon: Sunrise };
+    } else if (hour >= 12 && hour < 17) {
+      return { text: "Good afternoon", icon: Sun };
+    } else if (hour >= 17 && hour < 21) {
+      return { text: "Good evening", icon: Sunset };
+    } else {
+      return { text: "Good night", icon: Moon };
+    }
+  };
+
+  const greeting = getGreeting();
+  const GreetingIcon = greeting.icon;
 
   // Mock data for demonstration
   const todayStats = {
@@ -44,21 +66,16 @@ function Dashboard() {
     { day: "Sun", completed: false, type: "yoga" },
   ];
 
-  const upcomingWorkouts = [
-    { time: "6:00 PM", title: "Evening Yoga Flow", duration: "30 min", type: "yoga" },
-    { time: "Tomorrow 7:00 AM", title: "Morning Cardio", duration: "45 min", type: "cardio" },
-  ];
-
   return (
     <WellnessLayout>
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">
-            Good morning, {user?.first_name || 'there'}!
+            {greeting.text}, {user?.first_name || 'there'}!
           </h1>
           <p className="text-muted-foreground flex items-center gap-2">
-            <Sun className="w-4 h-4" />
+            <GreetingIcon className="w-4 h-4" />
             Ready to make today count? Let's keep up the momentum! 💪
           </p>
         </div>
@@ -122,22 +139,7 @@ function Dashboard() {
                 <Clock className="w-4 h-4 text-primary" />
                 Up Next
               </h3>
-              <div className="space-y-3">
-                {upcomingWorkouts.map((workout, index) => (
-                  <div key={index} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                    <div className="w-8 h-8 bg-gradient-primary rounded-full flex items-center justify-center">
-                      <Heart className="w-4 h-4 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">{workout.title}</p>
-                      <p className="text-xs text-muted-foreground">{workout.time} • {workout.duration}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <Button variant="zen" className="w-full mt-4">
-                View Full Schedule
-              </Button>
+              <UpNextWorkouts />
             </WellnessCard>
 
             {/* Quick Actions */}

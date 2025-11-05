@@ -31,6 +31,7 @@ import { authService } from "@/services/authService";
 import { notificationService, type Notification } from "@/services/notificationService";
 import { friendService, type SearchUser } from "@/services/friendService";
 import { AvatarUploader } from "@/components/AvatarUploader";
+import { supabase } from "@/lib/supabase";
 
 // Extend service types locally to match actual payload shape used in this component
 type NotificationWithRead = Notification & {
@@ -61,6 +62,12 @@ export default function Profile() {
   const [showBlockedUsers, setShowBlockedUsers] = useState(false);
   const [expandedNotifications, setExpandedNotifications] = useState<Set<string>>(new Set());
   const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
+  const [showMotivationModal, setShowMotivationModal] = useState(false);
+  const [selectedMotivation, setSelectedMotivation] = useState<NotificationWithRead | null>(null);
+  const [showMotivationRequestModal, setShowMotivationRequestModal] = useState(false);
+  const [selectedMotivationRequest, setSelectedMotivationRequest] = useState<NotificationWithRead | null>(null);
+  const [motivationResponseMessage, setMotivationResponseMessage] = useState("");
+  const [isSendingMotivationResponse, setIsSendingMotivationResponse] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState<Array<{
     id: string;
     first_name: string;
@@ -374,6 +381,69 @@ export default function Profile() {
     });
   };
 
+  const handleSendMotivationResponse = async () => {
+    if (!selectedMotivationRequest || !motivationResponseMessage.trim()) {
+      toast({
+        title: "Empty Message",
+        description: "Please write a motivational message.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSendingMotivationResponse(true);
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+
+      // Get current user's profile info
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('first_name, last_name, username')
+        .eq('id', currentUser.id)
+        .single();
+
+      // Send motivation to the requester
+      await notificationService.createNotification({
+        user_id: selectedMotivationRequest.data.requester_id,
+        type: 'motivation_received',
+        title: 'You received motivation!',
+        message: `${userProfile?.first_name || 'Someone'} ${userProfile?.last_name || ''} sent you motivation!`,
+        data: {
+          sender_id: currentUser.id,
+          sender_name: `${userProfile?.first_name} ${userProfile?.last_name}`,
+          sender_username: userProfile?.username,
+          motivation_message: motivationResponseMessage
+        },
+        read: false
+      });
+
+      toast({
+        title: "Motivation Sent!",
+        description: `Your motivational message was sent to ${selectedMotivationRequest.data.requester_name}.`,
+      });
+
+      // Remove the request notification
+      await handleRemoveNotification(selectedMotivationRequest.id);
+
+      // Reset modal state
+      setShowMotivationRequestModal(false);
+      setSelectedMotivationRequest(null);
+      setMotivationResponseMessage("");
+    } catch (error: any) {
+      console.error('❌ Error sending motivation response:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send motivation. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingMotivationResponse(false);
+    }
+  };
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "friend_request":
@@ -386,16 +456,22 @@ export default function Profile() {
         return "📅";
       case "workout_challenge":
         return "⚡";
+      case "motivation_received":
+        return "✨";
+      case "motivation_request":
+        return "🙏";
       case "post_like":
         return "❤️";
       case "post_comment":
         return "💬";
       case "comment_reply":
         return "↩️";
+      case "post_mention":
+        return "📢";
       case "social":
         return "❤️";
       default:
-        return "📢";
+        return "🔔";
     }
   };
 
@@ -997,12 +1073,12 @@ export default function Profile() {
                       className={`p-3 rounded-lg border ${
                         notification.read ? 'bg-muted/30' : 'bg-primary/5 border-primary/20'
                       } ${
-                        (notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply') 
+                        (notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply' || notification.type === 'post_mention') 
                           ? 'cursor-pointer hover:bg-muted/50 transition-colors' 
                           : ''
                       }`}
                       onClick={() => {
-                        if (notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply') {
+                        if (notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply' || notification.type === 'post_mention') {
                           handlePostNotificationClick(notification);
                         }
                       }}
@@ -1018,12 +1094,13 @@ export default function Profile() {
                             <p className="text-xs text-muted-foreground mt-2">
                               {formatTimestamp(notification.created_at)}
                             </p>
-                            {(notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply') && (
+                            {(notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply' || notification.type === 'post_mention') && (
                               <p className="text-xs text-primary mt-1">
                                 Click to view post →
                               </p>
                             )}
                             
+
                             {/* Friend Request Actions */}
                             {notification.type === 'friend_request' && notification.data?.friend_request_id && (
                               <div className="flex flex-wrap gap-2 mt-3">
@@ -1241,12 +1318,69 @@ export default function Profile() {
                                 </div>
                               </>
                             )}
+
+                            {/* Motivation Received Actions */}
+                            {notification.type === 'motivation_received' && (
+                              <div className="flex gap-2 mt-3">
+                                <Button
+                                  size="sm"
+                                  variant="motivation"
+                                  onClick={() => {
+                                    setSelectedMotivation(notification);
+                                    setShowMotivationModal(true);
+                                  }}
+                                  className="h-7 px-3 text-xs flex-1"
+                                >
+                                  <FileText className="w-3 h-3 mr-1" />
+                                  Open Message
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleRemoveNotification(notification.id)}
+                                  className="h-7 px-3 text-xs flex-1"
+                                >
+                                  <Check className="w-3 h-3 mr-1" />
+                                  Mark as Read
+                                </Button>
+                              </div>
+                            )}
+
+                            {/* Motivation Request Actions */}
+                            {notification.type === 'motivation_request' && (
+                              <div className="flex gap-2 mt-3">
+                                <Button
+                                  size="sm"
+                                  variant="motivation"
+                                  onClick={() => {
+                                    setSelectedMotivationRequest(notification);
+                                    setShowMotivationRequestModal(true);
+                                  }}
+                                  className="h-7 px-3 text-xs flex-1"
+                                >
+                                  <Users className="w-3 h-3 mr-1" />
+                                  Send Motivation
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleRemoveNotification(notification.id)}
+                                  className="h-7 px-3 text-xs flex-1"
+                                >
+                                  <X className="w-3 h-3 mr-1" />
+                                  Dismiss
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         </div>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleRemoveNotification(notification.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveNotification(notification.id);
+                          }}
                           className="h-6 w-6 p-0 hover:bg-destructive/10"
                         >
                           <X className="w-3 h-3" />
@@ -1315,6 +1449,138 @@ export default function Profile() {
               </div>
               <DialogFooter>
                 <Button onClick={() => setShowBlockedUsers(false)}>Close</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Motivation Message Modal */}
+          <Dialog open={showMotivationModal} onOpenChange={setShowMotivationModal}>
+            <DialogContent className="w-[95vw] max-w-[500px] max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <span className="text-2xl">💪</span>
+                  <span className="truncate">Motivational Message</span>
+                </DialogTitle>
+                <DialogDescription className="text-xs sm:text-sm">
+                  {selectedMotivation?.data?.sender_name && (
+                    <>From: {selectedMotivation.data.sender_name}
+                    {selectedMotivation.data.sender_username && ` (@${selectedMotivation.data.sender_username})`}</>
+                  )}
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="py-4">
+                {selectedMotivation?.data?.motivation_message ? (
+                  <div className="p-4 sm:p-6 bg-gradient-to-br from-primary/10 to-motivation/10 rounded-lg border border-primary/20">
+                    <p className="text-sm sm:text-base leading-relaxed whitespace-pre-wrap">
+                      {selectedMotivation.data.motivation_message}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p className="text-sm">No message content available.</p>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowMotivationModal(false);
+                    setSelectedMotivation(null);
+                  }}
+                  className="w-full sm:w-auto text-sm"
+                >
+                  Close
+                </Button>
+                <Button 
+                  variant="motivation"
+                  onClick={async () => {
+                    if (selectedMotivation) {
+                      await handleRemoveNotification(selectedMotivation.id);
+                      setShowMotivationModal(false);
+                      setSelectedMotivation(null);
+                    }
+                  }}
+                  className="w-full sm:w-auto text-sm"
+                >
+                  <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-2" />
+                  Mark as Read
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Motivation Request Response Modal */}
+          <Dialog open={showMotivationRequestModal} onOpenChange={setShowMotivationRequestModal}>
+            <DialogContent className="w-[95vw] max-w-[500px] max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <span className="text-2xl">💪</span>
+                  <span className="truncate">Send Motivation</span>
+                </DialogTitle>
+                <DialogDescription className="text-xs sm:text-sm">
+                  {selectedMotivationRequest?.data?.requester_name && (
+                    <>Send a motivational message to {selectedMotivationRequest.data.requester_name}</>
+                  )}
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="py-4 space-y-4">
+                <div className="p-3 bg-muted/50 rounded-lg border">
+                  <p className="text-xs text-muted-foreground mb-1">Request from:</p>
+                  <p className="text-sm font-medium">
+                    {selectedMotivationRequest?.data?.requester_name}
+                    {selectedMotivationRequest?.data?.requester_username && 
+                      <span className="text-muted-foreground ml-1">
+                        (@{selectedMotivationRequest.data.requester_username})
+                      </span>
+                    }
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="motivation-response" className="text-sm">Your Motivational Message</Label>
+                  <Textarea
+                    id="motivation-response"
+                    placeholder="Write something inspiring to motivate your friend... 💪"
+                    value={motivationResponseMessage}
+                    onChange={(e) => setMotivationResponseMessage(e.target.value)}
+                    rows={5}
+                    className="resize-none text-sm"
+                  />
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">
+                    {motivationResponseMessage.length} characters
+                  </p>
+                </div>
+              </div>
+
+              <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowMotivationRequestModal(false);
+                    setSelectedMotivationRequest(null);
+                    setMotivationResponseMessage("");
+                  }}
+                  className="w-full sm:w-auto text-sm"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  variant="motivation"
+                  onClick={handleSendMotivationResponse}
+                  disabled={!motivationResponseMessage.trim() || isSendingMotivationResponse}
+                  className="w-full sm:w-auto text-sm"
+                >
+                  {isSendingMotivationResponse ? (
+                    <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-2" />
+                  )}
+                  {isSendingMotivationResponse ? "Sending..." : "Send Motivation"}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

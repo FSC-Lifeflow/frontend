@@ -41,6 +41,7 @@ export type SearchUser = {
   last_name: string;
   email: string;
   created_at: string;
+  avatar_url?: string; // Optional avatar URL
 };
 
 /**
@@ -159,8 +160,8 @@ export const friendService = {
 
           // Get user info for the notification
           const [senderInfo, receiverInfo] = await Promise.all([
-            supabase.from('users').select('id, first_name, last_name, username, email').eq('id', currentUser.id).single(),
-            supabase.from('users').select('id, first_name, last_name, username, email').eq('id', receiverId).single()
+            supabase.from('users').select('id, first_name, last_name, username, email, avatar_url').eq('id', currentUser.id).single(),
+            supabase.from('users').select('id, first_name, last_name, username, email, avatar_url').eq('id', receiverId).single()
           ]);
 
           // Create the complete friend request object
@@ -204,8 +205,8 @@ export const friendService = {
 
       // Get sender and receiver info for the notification
       const [senderInfo, receiverInfo] = await Promise.all([
-        supabase.from('users').select('id, first_name, last_name, username, email').eq('id', currentUser.id).single(),
-        supabase.from('users').select('id, first_name, last_name, username, email').eq('id', receiverId).single()
+        supabase.from('users').select('id, first_name, last_name, username, email, avatar_url').eq('id', currentUser.id).single(),
+        supabase.from('users').select('id, first_name, last_name, username, email, avatar_url').eq('id', receiverId).single()
       ]);
 
       // Create the complete friend request object
@@ -269,8 +270,8 @@ export const friendService = {
         .from('friend_requests')
         .select(`
           *,
-          sender:users!sender_id(id, first_name, last_name, username, email),
-          receiver:users!receiver_id(id, first_name, last_name, username, email)
+          sender:users!sender_id(id, first_name, last_name, username, email, avatar_url),
+          receiver:users!receiver_id(id, first_name, last_name, username, email, avatar_url)
         `)
         .eq('receiver_id', currentUser.id)
         .eq('status', 'pending')
@@ -403,7 +404,7 @@ export const friendService = {
       // Get user information for all friends
       const { data: friends, error: friendsError } = await supabase
         .from('users')
-        .select('id, username, first_name, last_name, email, created_at')
+        .select('id, username, first_name, last_name, email, avatar_url, created_at')
         .in('id', friendIds);
 
       if (friendsError) {
@@ -652,7 +653,7 @@ export const friendService = {
       const blockedUserIds = data.map(block => block.blocked_id);
       const { data: blockedUsers, error: userError } = await supabase
         .from('users')
-        .select('id, first_name, last_name, username, email')
+        .select('id, first_name, last_name, username, email, avatar_url')
         .in('id', blockedUserIds);
 
       if (userError) {
@@ -829,7 +830,7 @@ export const friendService = {
       // Get user information for all friends
       const { data: friends, error: friendsError } = await supabase
         .from('users')
-        .select('id, username, first_name, last_name, email, created_at')
+        .select('id, username, first_name, last_name, email, avatar_url, created_at')
         .in('id', friendIds);
 
       if (friendsError) {

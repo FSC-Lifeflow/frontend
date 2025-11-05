@@ -1,14 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { format } from "date-fns";
 import { WellnessLayout } from "@/components/WellnessLayout";
 import { WellnessCard } from "@/components/WellnessCard";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Users, Loader2, UserPlus, Ban } from "lucide-react";
+import { ArrowLeft, Users, Loader2, UserPlus, Ban, Activity, Clock, X } from "lucide-react";
 import { userService } from "@/services/userService";
 import { friendService, type SearchUser } from "@/services/friendService";
+import { postService, type UserPost } from "@/services/postService";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 /**
  * Type for friend's public profile data
@@ -54,6 +59,111 @@ export default function FriendProfile({ friendId, onBack }: FriendProfileProps) 
   const [isBlocked, setIsBlocked] = useState(false);
   const [blockedBy, setBlockedBy] = useState(false);
   const [sendingRequest, setSendingRequest] = useState(false);
+  const [posts, setPosts] = useState<UserPost[]>([]);
+  const [allPosts, setAllPosts] = useState<UserPost[]>([]);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [showAllPosts, setShowAllPosts] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const postsEndRef = useRef<HTMLDivElement>(null);
+  const [page, setPage] = useState(1);
+  const postsPerPage = 10;
+
+  // Fetch all posts for the modal
+  const fetchAllPosts = async () => {
+    try {
+      setIsLoadingPosts(true);
+      const allUserPosts = await postService.getUserPosts(profileData?.id || '', 50); // Get up to 50 posts
+      setAllPosts(allUserPosts);
+    } catch (error) {
+      console.error('Failed to fetch all posts:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load all posts",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingPosts(false);
+    }
+  };
+
+  // Open modal and load all posts
+  const handleOpenAllPosts = () => {
+    setShowAllPosts(true);
+    fetchAllPosts();
+  };
+
+  // Fetch friend's activity posts
+  useEffect(() => {
+    const fetchUserPosts = async () => {
+      if (!friendId || !profileData?.activity_sharing) return;
+      
+      setIsLoadingPosts(true);
+      try {
+        const userPosts = await postService.getUserPosts(friendId, 5); // Get last 5 posts
+        setPosts(userPosts);
+      } catch (error) {
+        console.error('Failed to fetch user posts:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load activity posts",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingPosts(false);
+      }
+    };
+
+    fetchUserPosts();
+  }, [friendId, profileData?.activity_sharing, toast]);
+
+  // Format post timestamp
+  const formatPostTime = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return format(date, 'MMM d, yyyy h:mm a');
+    } catch (error) {
+      return dateString;
+    }
+  };
+
+  // Render a single post item
+  const renderPost = (post: UserPost) => (
+    <div key={post.id} className="p-4 border rounded-lg mb-3">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center space-x-2">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src="" alt={post.user?.first_name} />
+            <AvatarFallback className="text-xs">
+              {post.user?.first_name?.[0]}{post.user?.last_name?.[0]}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <p className="text-sm font-medium">
+              {post.user?.first_name} {post.user?.last_name}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center text-xs text-muted-foreground">
+          <Clock className="w-3.5 h-3.5 mr-1" />
+          <span>{formatPostTime(post.created_at)}</span>
+          {post.is_edited && (
+            <span className="ml-2 text-xs text-muted-foreground/70">(edited)</span>
+          )}
+        </div>
+      </div>
+      <p className="text-sm text-foreground whitespace-pre-line">{post.content}</p>
+    </div>
+  );
+
+  // Filter posts based on search query
+  const filteredPosts = allPosts.filter(post => 
+    post.content.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Pagination
+  const paginatedPosts = filteredPosts.slice(0, page * postsPerPage);
+  const hasMore = paginatedPosts.length < filteredPosts.length;
 
   // Fetch friend's profile data and check relationship status
   useEffect(() => {
@@ -362,46 +472,154 @@ export default function FriendProfile({ friendId, onBack }: FriendProfileProps) 
             )}
           </WellnessCard>
 
-          {/* Friends List */}
-          <WellnessCard>
-            <div className="flex items-center gap-2 mb-6">
-              <Users className="w-5 h-5 text-primary" />
-              <h2 className="text-xl font-semibold">Friends</h2>
-              <Badge variant="secondary" className="ml-2">
-                {friends.length}
-              </Badge>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Friends List - Narrower column */}
+            <div className="lg:col-span-1">
+              <WellnessCard>
+                <div className="flex items-center gap-2 mb-4">
+                  <Users className="w-5 h-5 text-primary" />
+                  <h2 className="text-lg font-semibold">Friends</h2>
+                  <Badge variant="secondary" className="ml-1">
+                    {friends.length}
+                  </Badge>
+                </div>
+
+                {loadingFriends ? (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                ) : friends.length > 0 ? (
+                  <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                    {friends.map((friend) => (
+                      <div key={friend.id} className="flex items-center p-2 border rounded-lg hover:bg-muted/50 transition-colors">
+                        <Avatar className="h-9 w-9">
+                          <AvatarImage src="" alt={friend.first_name} />
+                          <AvatarFallback className="text-sm">
+                            {friend.first_name?.[0]}{friend.last_name?.[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="ml-2 overflow-hidden">
+                          <p className="font-medium text-sm truncate">{friend.first_name} {friend.last_name}</p>
+                          <p className="text-xs text-muted-foreground truncate">@{friend.username}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <Users className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No friends to display</p>
+                  </div>
+                )}
+              </WellnessCard>
             </div>
 
-            {loadingFriends ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : friends.length > 0 ? (
-              <div className="space-y-4">
-                {friends.map((friend) => (
-                  <div key={friend.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src="" alt={friend.first_name} />
-                        <AvatarFallback>
-                          {friend.first_name?.[0]}{friend.last_name?.[0]}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium">{friend.first_name} {friend.last_name}</p>
-                        <p className="text-sm text-muted-foreground">@{friend.username}</p>
-                      </div>
+            {/* Activity Posts - Wider column */}
+            <div className="lg:col-span-2">
+              <WellnessCard>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-primary" />
+                    <h2 className="text-lg font-semibold">Recent Activity</h2>
+                  </div>
+                  {posts.length > 0 && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-primary"
+                      onClick={handleOpenAllPosts}
+                    >
+                      View All
+                    </Button>
+                  )}
+                </div>
+
+                {!profileData?.activity_sharing ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <div className="bg-muted/50 rounded-lg p-6 border-2 border-dashed border-muted-foreground/20">
+                      <Users className="h-12 w-12 mx-auto mb-3 text-muted-foreground/40" />
+                      <p className="text-muted-foreground font-medium">Activity Sharing Disabled</p>
+                      <p className="text-sm text-muted-foreground/70 mt-1">
+                        This user has chosen not to share their activity
+                      </p>
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p>No friends to display</p>
-              </div>
-            )}
-          </WellnessCard>
+                ) : isLoadingPosts ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                ) : posts.length > 0 ? (
+                  <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+                    {posts.map(renderPost)}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Activity className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No activity to display</p>
+                  </div>
+                )}
+              </WellnessCard>
+
+              {/* All Posts Modal */}
+              <Dialog open={showAllPosts} onOpenChange={setShowAllPosts}>
+                <DialogContent className="max-w-2xl h-[80vh] p-0 flex flex-col overflow-hidden">
+                  {/* Fixed Header */}
+                  <div className="border-b p-4">
+                    <DialogHeader>
+                      <DialogTitle>All Activity Posts</DialogTitle>
+                    </DialogHeader>
+                    
+                    <div className="mt-4">
+                      <Input
+                        placeholder="Search posts..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Scrollable Content */}
+                  <ScrollArea className="flex-1 p-4">
+                    <div className="space-y-3">
+                      {isLoadingPosts ? (
+                        <div className="flex justify-center py-8">
+                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        </div>
+                      ) : filteredPosts.length > 0 ? (
+                        <>
+                          {paginatedPosts.map(renderPost)}
+                          {hasMore && (
+                            <div className="flex justify-center mt-4">
+                              <Button 
+                                variant="outline" 
+                                onClick={() => setPage(p => p + 1)}
+                                disabled={isLoadingMore}
+                                className="w-full max-w-xs"
+                              >
+                                {isLoadingMore ? (
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : null}
+                                Load More
+                              </Button>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <Activity className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                          <p>No posts found</p>
+                          {searchQuery && (
+                            <p className="text-sm mt-1">No posts match your search</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
         </div>
       </div>
     </WellnessLayout>

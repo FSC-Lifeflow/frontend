@@ -10,6 +10,7 @@ export type SearchUser = {
   last_name: string;
   email: string;
   created_at: string;
+  avatar_url?: string; // Optional avatar URL
   mutual_friends_count?: number; // Optional field for friend suggestions
 };
 
@@ -44,7 +45,7 @@ export const userService = {
       // Only include users who have social_privacy enabled (true or null, since null defaults to true)
       let queryBuilder = supabase
         .from('users')
-        .select('id, username, first_name, last_name, email, created_at')
+        .select('id, username, first_name, last_name, email, avatar_url, created_at')
         .or(`username.ilike.${searchTerm},first_name.ilike.${searchTerm},last_name.ilike.${searchTerm}`)
         .or('social_privacy.is.null,social_privacy.eq.true') // Include users with social_privacy = true or null
         .limit(limit);
@@ -84,7 +85,7 @@ export const userService = {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, username, first_name, last_name, email, created_at')
+        .select('id, username, first_name, last_name, email, avatar_url, created_at')
         .eq('id', userId)
         .maybeSingle();
 
@@ -113,7 +114,7 @@ export const userService = {
 
       const { data, error } = await supabase
         .from('users')
-        .select('id, username, first_name, last_name, email, created_at')
+        .select('id, username, first_name, last_name, email, avatar_url, created_at')
         .in('id', userIds);
 
       if (error) {
@@ -124,6 +125,72 @@ export const userService = {
       return data || [];
     } catch (error) {
       console.error('❌ Get users by IDs error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Gets the total count of users in the system
+   * Uses a database function to bypass RLS for public access
+   * @returns Total number of users
+   */
+  async getTotalUserCount(): Promise<number> {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_total_user_count');
+
+      if (error) {
+        console.error('❌ Failed to get user count:', error);
+        throw new Error('Failed to get user count');
+      }
+
+      return data || 0;
+    } catch (error) {
+      console.error('❌ Get user count error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Gets the total steps taken by all users today
+   * Uses a database function to bypass RLS for public access
+   * @returns Total steps taken today across all users
+   */
+  async getTotalStepsToday(): Promise<number> {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_total_steps_today');
+
+      if (error) {
+        console.error('❌ Failed to get total steps today:', error);
+        throw new Error('Failed to get total steps today');
+      }
+
+      return data || 0;
+    } catch (error) {
+      console.error('❌ Get total steps today error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Gets the count of AI-scheduled workouts this week
+   * Uses a database function to bypass RLS for public access
+   * @returns Count of AI-scheduled workouts this week across all users
+   */
+  async getAIWorkoutsThisWeek(): Promise<number> {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_ai_workouts_this_week');
+
+      if (error) {
+        console.error('❌ Failed to get AI workouts this week:', error);
+        throw new Error('Failed to get AI workouts this week');
+      }
+
+      return data || 0;
+    } catch (error) {
+      console.error('❌ Get AI workouts this week error:', error);
       throw error;
     }
   },
