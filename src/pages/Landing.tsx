@@ -399,19 +399,25 @@ const Landing = () => {
                 </p>
                 
                 <div className="bg-muted/50 rounded-lg p-4">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center text-white text-xs font-bold">🎯</div>
-                      <div>
-                        <div className="text-sm font-medium">Goal achieved!</div>
-                        <div className="text-xs text-muted-foreground">Keep up the great work!</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white text-xs font-bold">👥</div>
-                      <div>
-                        <div className="text-sm font-medium">3 friends need motivation</div>
-                        <div className="text-xs text-muted-foreground">Send them encouragement?</div>
+                  {/* Motivation Request Notification Example */}
+                  <div className="bg-background rounded-lg p-3 border border-border">
+                    <div className="flex items-start gap-3">
+                      <span className="text-lg">🙏</span>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-sm">Motivation Request</h4>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Alexis is requesting motivation!
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">17 minutes ago</p>
+                        <div className="flex gap-2 mt-3">
+                          <div className="h-7 px-3 text-xs flex-1 bg-gradient-motivation text-white rounded-md flex items-center justify-center">
+                            <Users className="w-3 h-3 mr-1" />
+                            Send Motivation
+                          </div>
+                          <div className="h-7 px-3 text-xs flex-1 border border-border rounded-md flex items-center justify-center">
+                            Dismiss
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
