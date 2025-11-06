@@ -81,6 +81,7 @@ export function ManualWorkoutDialog({
         duration_minutes: Number(values.duration_minutes),
         satisfaction: values.satisfaction ? Number(values.satisfaction) : null,
         notes: values.notes || null,
+        source: 'manual', // Mark as manually logged workout
       });
 
       toast({ title: "Workout logged", description: "Your workout has been saved." });

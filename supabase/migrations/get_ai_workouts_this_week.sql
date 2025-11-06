@@ -1,4 +1,5 @@
--- Create a public function to get count of AI-scheduled workouts this week
+-- Create a public function to get count of workouts scheduled through the site this week
+-- This includes both manually logged workouts and AI-scheduled workouts
 -- This function runs with elevated privileges (SECURITY DEFINER)
 -- allowing unauthenticated users to see community stats on the landing page
 
@@ -15,14 +16,16 @@ BEGIN
   -- Get the start of the current week (Monday)
   week_start := DATE_TRUNC('week', CURRENT_DATE)::DATE;
   
-  -- Count workouts from this week where source indicates AI scheduling
-  -- Adjust the source filter based on how your AI marks scheduled workouts
-  -- Common values might be: 'ai', 'ai_scheduled', 'automated', etc.
+  -- Count all workouts scheduled through the site this week
+  -- This includes:
+  -- 1. Manual workouts logged through "Log Manual Activity" (source='manual')
+  -- 2. AI-scheduled workouts (source='ai', 'ai_scheduled', 'automated', etc.)
+  -- We exclude only workouts imported from external sources like Fitbit (source='fitbit')
   SELECT COUNT(*)::INTEGER INTO workout_count
   FROM workouts
   WHERE started_at >= week_start
     AND started_at < week_start + INTERVAL '7 days'
-    AND (source IS NOT NULL AND source != 'manual'); -- Assumes AI-scheduled workouts have a source value
+    AND (source IS NULL OR source IN ('manual', 'ai', 'ai_scheduled', 'automated'));
   
   RETURN workout_count;
 END;
@@ -36,4 +39,4 @@ GRANT EXECUTE ON FUNCTION get_ai_workouts_this_week() TO authenticated;
 
 -- Add a comment explaining the function
 COMMENT ON FUNCTION get_ai_workouts_this_week() IS 
-'Returns the count of AI-scheduled workouts this week across all users. This function is publicly accessible to display community stats on the landing page.';
+'Returns the count of workouts scheduled through the site this week (manual + AI-scheduled) across all users. Excludes external imports like Fitbit. This function is publicly accessible to display community stats on the landing page.';

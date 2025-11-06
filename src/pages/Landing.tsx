@@ -60,7 +60,7 @@ const Landing = () => {
   const [isVisible, setIsVisible] = useState(false);
   const [totalUsers, setTotalUsers] = useState<number>(0);
   const [totalSteps, setTotalSteps] = useState<number>(0);
-  const [aiWorkoutsThisWeek, setAiWorkoutsThisWeek] = useState<number>(0);
+  const [scheduledWorkoutsThisWeek, setScheduledWorkoutsThisWeek] = useState<number>(0);
   const navigate = useNavigate();
   
   // Scroll animation refs for each section
@@ -100,20 +100,20 @@ const Landing = () => {
       }
     };
     
-    // Fetch AI workouts this week
-    const fetchAIWorkouts = async () => {
+    // Fetch scheduled workouts this week (manual + AI)
+    const fetchScheduledWorkouts = async () => {
       try {
         const count = await userService.getAIWorkoutsThisWeek();
-        setAiWorkoutsThisWeek(count);
+        setScheduledWorkoutsThisWeek(count);
       } catch (error) {
-        console.error('Failed to fetch AI workouts:', error);
+        console.error('Failed to fetch scheduled workouts:', error);
         // Keep default value of 0 on error
       }
     };
     
     fetchUserCount();
     fetchTotalSteps();
-    fetchAIWorkouts();
+    fetchScheduledWorkouts();
   }, []);
 
   const handleStartFitnessJourney = () => {
@@ -168,9 +168,9 @@ const Landing = () => {
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
                     <div className="w-3 h-3 bg-secondary rounded-full animate-pulse"></div>
-                    <span className="text-sm text-muted-foreground">AI Scheduling Active</span>
+                    <span className="text-sm text-muted-foreground">Scheduling Active</span>
                   </div>
-                  <div className="text-2xl font-bold text-foreground">{aiWorkoutsThisWeek}</div>
+                  <div className="text-2xl font-bold text-foreground">{scheduledWorkoutsThisWeek}</div>
                   <div className="text-xs text-muted-foreground">Workouts scheduled this week</div>
                 </div>
                 <div className="space-y-4">
@@ -700,7 +700,7 @@ const Landing = () => {
             </div>
             <div className="flex items-center gap-2">
               <Star className="w-4 h-4" />
-              Free to Start
+              Start For Free
             </div>
           </div>
         </div>
