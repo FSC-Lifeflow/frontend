@@ -606,8 +606,8 @@ const Landing = () => {
                         <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">A</div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-sm font-medium">Alex Chen</span>
-                            <span className="text-xs text-muted-foreground">@alexc</span>
+                            <span className="text-sm font-medium">Mannax Wells</span>
+                            <span className="text-xs text-muted-foreground">@Mannax</span>
                           </div>
                           <p className="text-sm text-foreground mb-1">Just crushed a 30-minute HIIT session! Feeling energized 💪</p>
                           <div className="text-xs text-muted-foreground">2 hours ago</div>
@@ -619,8 +619,8 @@ const Landing = () => {
                         <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">M</div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-sm font-medium">Maya Rodriguez</span>
-                            <span className="text-xs text-muted-foreground">@mayar</span>
+                            <span className="text-sm font-medium">Hannah Rodriguez</span>
+                            <span className="text-xs text-muted-foreground">@Hannahr</span>
                           </div>
                           <p className="text-sm text-foreground mb-1">Morning yoga complete! Starting the day with mindfulness 🧘‍♀️</p>
                           <div className="text-xs text-muted-foreground">5 hours ago</div>
