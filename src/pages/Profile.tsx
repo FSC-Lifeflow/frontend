@@ -31,6 +31,7 @@ import { authService } from "@/services/authService";
 import { notificationService, type Notification } from "@/services/notificationService";
 import { friendService, type SearchUser } from "@/services/friendService";
 import { AvatarUploader } from "@/components/AvatarUploader";
+import { WorkoutCompletionDialog } from "@/components/WorkoutCompletionDialog";
 import { supabase } from "@/lib/supabase";
 
 // Extend service types locally to match actual payload shape used in this component
@@ -77,6 +78,8 @@ export default function Profile() {
     created_at: string;
   }>>([]);
   const [loadingBlockedUsers, setLoadingBlockedUsers] = useState(false);
+  const [showWorkoutCompletionDialog, setShowWorkoutCompletionDialog] = useState(false);
+  const [selectedWorkoutCompletion, setSelectedWorkoutCompletion] = useState<NotificationWithRead | null>(null);
 
   // Profile data with default values
   const [profileData, setProfileData] = useState({
@@ -1472,6 +1475,33 @@ export default function Profile() {
                                 </Button>
                               </div>
                             )}
+
+                            {/* Workout Completion Prompt Actions */}
+                            {notification.type === 'workout_completion_prompt' && (
+                              <div className="flex gap-2 mt-3">
+                                <Button
+                                  size="sm"
+                                  variant="motivation"
+                                  onClick={() => {
+                                    setSelectedWorkoutCompletion(notification);
+                                    setShowWorkoutCompletionDialog(true);
+                                  }}
+                                  className="h-7 px-3 text-xs flex-1"
+                                >
+                                  <Check className="w-3 h-3 mr-1" />
+                                  Respond
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleRemoveNotification(notification.id)}
+                                  className="h-7 px-3 text-xs flex-1"
+                                >
+                                  <X className="w-3 h-3 mr-1" />
+                                  Dismiss
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         </div>
                         <Button
@@ -1684,6 +1714,24 @@ export default function Profile() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          {/* Workout Completion Dialog */}
+          {selectedWorkoutCompletion?.data && (
+            <WorkoutCompletionDialog
+              open={showWorkoutCompletionDialog}
+              onOpenChange={setShowWorkoutCompletionDialog}
+              notificationData={selectedWorkoutCompletion.data}
+              onComplete={async () => {
+                // Remove notification and refresh
+                if (selectedWorkoutCompletion) {
+                  await handleRemoveNotification(selectedWorkoutCompletion.id);
+                  setSelectedWorkoutCompletion(null);
+                }
+                await fetchNotifications();
+                await refreshUnreadCount();
+              }}
+            />
+          )}
         </div>
       </div>
     </WellnessLayout>

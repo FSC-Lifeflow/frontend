@@ -9,6 +9,7 @@ import { setupChatRoutes } from './routes/chat.js';
 import { setupFitbitRoutes } from './routes/fitbit.js';
 import { setupGoogleRoutes } from './routes/google.js';
 import { setupFitbitDataRoutes } from './routes/fitbitData.js';
+import { setupWorkoutNotificationRoutes } from './routes/workoutNotifications.js';
 
 dotenv.config({ path: '.env.server' });
 
@@ -49,6 +50,9 @@ setupGoogleRoutes(app, supabase, tokenService, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_S
 
 // Fitbit data routes for n8n integration
 setupFitbitDataRoutes(app, supabase, N8N_WEBHOOK_URL);
+
+// Workout notification routes
+setupWorkoutNotificationRoutes(app, supabase);
 
 
 app.listen(PORT, () => {
