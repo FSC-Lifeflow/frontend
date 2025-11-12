@@ -1362,30 +1362,33 @@ export default function Profile() {
                                   <div className="mt-2 p-3 bg-muted/50 rounded-md space-y-2 text-xs">
                                     <div className="flex items-center gap-2">
                                       <FileText className="w-3 h-3 text-muted-foreground" />
-                                      <span className="font-medium">Type:</span>
-                                      <span className="capitalize">{notification.data.workout_type}</span>
+                                      <span className="font-medium">Workout Form:</span>
+                                      <span className="capitalize">{notification.data.workout_form || notification.data.workout_type}</span>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                      <Calendar className="w-3 h-3 text-muted-foreground" />
-                                      <span className="font-medium">When:</span>
-                                      <span>{new Date(notification.data.workout_time).toLocaleString()}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <Clock className="w-3 h-3 text-muted-foreground" />
-                                      <span className="font-medium">Duration:</span>
-                                      <span>{notification.data.workout_duration} min</span>
-                                    </div>
-                                    {notification.data.workout_place && (
+                                    {notification.data.time_option === "set" && notification.data.workout_time ? (
+                                      <>
+                                        <div className="flex items-center gap-2">
+                                          <Calendar className="w-3 h-3 text-muted-foreground" />
+                                          <span className="font-medium">When:</span>
+                                          <span>{new Date(notification.data.workout_time).toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <Clock className="w-3 h-3 text-muted-foreground" />
+                                          <span className="font-medium">Duration:</span>
+                                          <span>{notification.data.workout_duration} min</span>
+                                        </div>
+                                      </>
+                                    ) : (
                                       <div className="flex items-center gap-2">
-                                        <MapPin className="w-3 h-3 text-muted-foreground" />
-                                        <span className="font-medium">Place:</span>
-                                        <span>{notification.data.workout_place}</span>
+                                        <Clock className="w-3 h-3 text-muted-foreground" />
+                                        <span className="font-medium">Timing:</span>
+                                        <span className="text-primary">Complete on your own time</span>
                                       </div>
                                     )}
                                     {notification.data.workout_note && (
                                       <div className="flex items-start gap-2">
                                         <FileText className="w-3 h-3 text-muted-foreground mt-0.5" />
-                                        <span className="font-medium">Challenge Note:</span>
+                                        <span className="font-medium">Description:</span>
                                         <span className="flex-1">{notification.data.workout_note}</span>
                                       </div>
                                     )}

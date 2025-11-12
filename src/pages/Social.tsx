@@ -121,6 +121,10 @@ export default function Social() {
   const [workoutPlace, setWorkoutPlace] = useState("");
   const [workoutNote, setWorkoutNote] = useState("");
   
+  // Challenge-specific states
+  const [challengeTimeOption, setChallengeTimeOption] = useState<"set" | "flexible">("set");
+  const [challengeWorkoutForm, setChallengeWorkoutForm] = useState("");
+  
   // Scheduled workout invitation states
   const [selectedCalendarEvent, setSelectedCalendarEvent] = useState<CalendarEvent | null>(null);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
@@ -1929,10 +1933,10 @@ export default function Social() {
         setShowChallengeModal(open);
         if (!open) {
           setChallengeStep(1);
-          setWorkoutType("");
+          setChallengeTimeOption("set");
+          setChallengeWorkoutForm("");
           setWorkoutTime("");
           setWorkoutDuration("");
-          setWorkoutPlace("");
           setWorkoutNote("");
           setSelectedFriends([]);
           setFriendSearchQuery("");
@@ -1964,11 +1968,73 @@ export default function Social() {
             {challengeStep === 1 ? (
               /* Step 1: Challenge Details */
               <div className="space-y-4">
+                {/* Time Option Selection */}
                 <div className="space-y-2">
-                  <Label htmlFor="challenge-workout-type">Workout Type *</Label>
-                  <Select value={workoutType} onValueChange={setWorkoutType}>
-                    <SelectTrigger id="challenge-workout-type">
-                      <SelectValue placeholder="Select workout type" />
+                  <Label>Challenge Time *</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      type="button"
+                      variant={challengeTimeOption === "set" ? "default" : "outline"}
+                      className="h-auto py-3 flex flex-col items-center gap-1"
+                      onClick={() => setChallengeTimeOption("set")}
+                    >
+                      <Calendar className="w-4 h-4" />
+                      <span className="text-xs">Set Time</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={challengeTimeOption === "flexible" ? "default" : "outline"}
+                      className="h-auto py-3 flex flex-col items-center gap-1"
+                      onClick={() => setChallengeTimeOption("flexible")}
+                    >
+                      <Users className="w-4 h-4" />
+                      <span className="text-xs">Receiver Chooses</span>
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {challengeTimeOption === "set" 
+                      ? "You'll set a specific date and time for the challenge" 
+                      : "Let your friend choose when to complete the challenge"}
+                  </p>
+                </div>
+
+                {/* Conditional Time/Duration Fields */}
+                {challengeTimeOption === "set" && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="challenge-workout-time">Date & Time *</Label>
+                      <Input
+                        id="challenge-workout-time"
+                        type="datetime-local"
+                        value={workoutTime}
+                        onChange={(e) => setWorkoutTime(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="challenge-workout-duration">Duration *</Label>
+                      <Select value={workoutDuration} onValueChange={setWorkoutDuration}>
+                        <SelectTrigger id="challenge-workout-duration">
+                          <SelectValue placeholder="Duration" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="15">15 min</SelectItem>
+                          <SelectItem value="30">30 min</SelectItem>
+                          <SelectItem value="45">45 min</SelectItem>
+                          <SelectItem value="60">1 hour</SelectItem>
+                          <SelectItem value="90">1.5 hours</SelectItem>
+                          <SelectItem value="120">2 hours</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+
+                {/* Workout Form Selection */}
+                <div className="space-y-2">
+                  <Label htmlFor="challenge-workout-form">Workout Form *</Label>
+                  <Select value={challengeWorkoutForm} onValueChange={setChallengeWorkoutForm}>
+                    <SelectTrigger id="challenge-workout-form">
+                      <SelectValue placeholder="Select workout form" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="strength">Strength Training</SelectItem>
@@ -1980,54 +2046,20 @@ export default function Social() {
                       <SelectItem value="cycling">Cycling</SelectItem>
                       <SelectItem value="swimming">Swimming</SelectItem>
                       <SelectItem value="sports">Sports</SelectItem>
+                      <SelectItem value="dance">Dance</SelectItem>
+                      <SelectItem value="martial_arts">Martial Arts</SelectItem>
+                      <SelectItem value="crossfit">CrossFit</SelectItem>
                       <SelectItem value="other">Other</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="challenge-workout-time">Date & Time *</Label>
-                    <Input
-                      id="challenge-workout-time"
-                      type="datetime-local"
-                      value={workoutTime}
-                      onChange={(e) => setWorkoutTime(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="challenge-workout-duration">Duration *</Label>
-                    <Select value={workoutDuration} onValueChange={setWorkoutDuration}>
-                      <SelectTrigger id="challenge-workout-duration">
-                        <SelectValue placeholder="Duration" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="15">15 min</SelectItem>
-                        <SelectItem value="30">30 min</SelectItem>
-                        <SelectItem value="45">45 min</SelectItem>
-                        <SelectItem value="60">1 hour</SelectItem>
-                        <SelectItem value="90">1.5 hours</SelectItem>
-                        <SelectItem value="120">2 hours</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
+                {/* Optional Notes */}
                 <div className="space-y-2">
-                  <Label htmlFor="challenge-workout-place">Place (Optional)</Label>
-                  <Input
-                    id="challenge-workout-place"
-                    placeholder="e.g., Central Park, Gold's Gym, Online"
-                    value={workoutPlace}
-                    onChange={(e) => setWorkoutPlace(e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="challenge-workout-note">Challenge Note (Optional)</Label>
+                  <Label htmlFor="challenge-workout-note">Challenge Description (Optional)</Label>
                   <Textarea
                     id="challenge-workout-note"
-                    placeholder="Add challenge rules or details..."
+                    placeholder="Add extra details about the challenge (e.g., 'Let's see who can do more push-ups!' or 'Complete a 5K run')"
                     value={workoutNote}
                     onChange={(e) => setWorkoutNote(e.target.value)}
                     rows={3}
@@ -2141,10 +2173,10 @@ export default function Social() {
                   onClick={() => {
                     setShowChallengeModal(false);
                     setChallengeStep(1);
-                    setWorkoutType("");
+                    setChallengeTimeOption("set");
+                    setChallengeWorkoutForm("");
                     setWorkoutTime("");
                     setWorkoutDuration("");
-                    setWorkoutPlace("");
                     setWorkoutNote("");
                   }}
                 >
@@ -2152,8 +2184,30 @@ export default function Social() {
                 </Button>
                 <Button 
                   variant="motivation"
-                  disabled={!workoutType || !workoutTime || !workoutDuration}
-                  onClick={() => setChallengeStep(2)}
+                  disabled={
+                    !challengeWorkoutForm || 
+                    (challengeTimeOption === "set" && (!workoutTime || !workoutDuration))
+                  }
+                  onClick={() => {
+                    // Load friends when moving to step 2
+                    setIsLoadingFriends(true);
+                    friendService.getFriends()
+                      .then(friendsList => {
+                        setFriends(friendsList);
+                      })
+                      .catch(error => {
+                        console.error('Failed to load friends:', error);
+                        toast({
+                          title: "Error",
+                          description: "Failed to load friends list",
+                          variant: "destructive",
+                        });
+                      })
+                      .finally(() => {
+                        setIsLoadingFriends(false);
+                      });
+                    setChallengeStep(2);
+                  }}
                 >
                   Next: Select Friends
                 </Button>
@@ -2191,16 +2245,18 @@ export default function Social() {
                           user_id: friend.id,
                           type: 'workout_challenge',
                           title: 'Workout Challenge',
-                          message: `${userProfile?.first_name || 'Someone'} ${userProfile?.last_name || ''} challenged you to a ${workoutType} workout competition!`,
+                          message: challengeTimeOption === "set"
+                            ? `${userProfile?.first_name || 'Someone'} ${userProfile?.last_name || ''} challenged you to a ${challengeWorkoutForm} workout!`
+                            : `${userProfile?.first_name || 'Someone'} ${userProfile?.last_name || ''} challenged you to a ${challengeWorkoutForm} workout - complete it on your own time!`,
                           data: {
                             challenger_id: currentUser.id,
                             challenger_name: `${userProfile?.first_name} ${userProfile?.last_name}`,
                             challenger_username: userProfile?.username,
                             challenge_type: 'workout_challenge',
-                            workout_type: workoutType,
-                            workout_time: workoutTime,
-                            workout_duration: workoutDuration,
-                            workout_place: workoutPlace || null,
+                            workout_form: challengeWorkoutForm,
+                            time_option: challengeTimeOption,
+                            workout_time: challengeTimeOption === "set" ? workoutTime : null,
+                            workout_duration: challengeTimeOption === "set" ? workoutDuration : null,
                             workout_note: workoutNote || null
                           },
                           read: false
@@ -2233,10 +2289,10 @@ export default function Social() {
                       setChallengeStep(1);
                       setSelectedFriends([]);
                       setFriendSearchQuery("");
-                      setWorkoutType("");
+                      setChallengeTimeOption("set");
+                      setChallengeWorkoutForm("");
                       setWorkoutTime("");
                       setWorkoutDuration("");
-                      setWorkoutPlace("");
                       setWorkoutNote("");
                     } catch (error: any) {
                       console.error('❌ Error sending challenge:', error);
