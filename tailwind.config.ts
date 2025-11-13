@@ -122,6 +122,14 @@ export default {
             boxShadow: "0 0 30px hsl(var(--primary-glow) / 0.5)"
           }
         },
+        "pulse-scale": {
+          "0%, 100%": {
+            transform: "scale(1)"
+          },
+          "50%": {
+            transform: "scale(1.05)"
+          }
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -129,6 +137,7 @@ export default {
         "fade-in": "fade-in 0.6s ease-out",
         "slide-up": "slide-up 0.4s ease-out",
         "glow-pulse": "glow-pulse 2s ease-in-out infinite",
+        "pulse-scale": "pulse-scale 2s ease-in-out",
       },
     },
   },

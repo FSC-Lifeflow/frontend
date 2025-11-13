@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { useGoogleCalendar, type CalendarEvent } from "@/hooks/useGoogleCalendar";
 import { 
   Search, 
   Trophy, 
@@ -43,6 +44,7 @@ import { postService, type Post, type UserPost } from "@/services/postService";
 import { notificationService } from "@/services/notificationService";
 import { postInteractionService, type PostComment } from "@/services/postInteractionService";
 import { supabase } from "@/lib/supabase";
+import { API_BASE_URL } from "@/lib/config";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
@@ -61,7 +63,8 @@ export default function Social() {
   const highlightedPostRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [newPost, setNewPost] = useState("");
-  const [showPrivacyPrompt, setShowPrivacyPrompt] = useState(!localStorage.getItem('socialOptIn'));
+  const [showPrivacyPrompt, setShowPrivacyPrompt] = useState(true);
+  const [isCheckingSocialPrivacy, setIsCheckingSocialPrivacy] = useState(true);
   const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
@@ -100,6 +103,7 @@ export default function Social() {
   // Co-Workout states
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showChallengeModal, setShowChallengeModal] = useState(false);
+  const [showScheduledWorkoutModal, setShowScheduledWorkoutModal] = useState(false);
   const [friends, setFriends] = useState<SearchUser[]>([]);
   const [isLoadingFriends, setIsLoadingFriends] = useState(false);
   const [selectedFriends, setSelectedFriends] = useState<SearchUser[]>([]);
@@ -108,6 +112,7 @@ export default function Social() {
   // Multi-step modal states
   const [inviteStep, setInviteStep] = useState(1);
   const [challengeStep, setChallengeStep] = useState(1);
+  const [scheduledWorkoutStep, setScheduledWorkoutStep] = useState(1);
   
   // Workout details states
   const [workoutType, setWorkoutType] = useState("");
@@ -115,6 +120,15 @@ export default function Social() {
   const [workoutDuration, setWorkoutDuration] = useState("");
   const [workoutPlace, setWorkoutPlace] = useState("");
   const [workoutNote, setWorkoutNote] = useState("");
+  
+  // Challenge-specific states
+  const [challengeTimeOption, setChallengeTimeOption] = useState<"set" | "flexible">("set");
+  const [challengeWorkoutForm, setChallengeWorkoutForm] = useState("");
+  
+  // Scheduled workout invitation states
+  const [selectedCalendarEvent, setSelectedCalendarEvent] = useState<CalendarEvent | null>(null);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  const [isLoadingCalendarEvents, setIsLoadingCalendarEvents] = useState(false);
   
   // Friend profile viewing
   const [viewingFriendId, setViewingFriendId] = useState<string | null>(null);
@@ -125,13 +139,42 @@ export default function Social() {
   const [isSendingMotivation, setIsSendingMotivation] = useState(false);
   const [isRequestingMotivation, setIsRequestingMotivation] = useState(false);
 
-  const handleOptIn = () => {
-    localStorage.setItem('socialOptIn', 'true');
-    setShowPrivacyPrompt(false);
-    toast({
-      title: "Social Features Enabled",
-      description: "You can now connect with friends and share your wellness journey!",
-    });
+  const handleOptIn = async () => {
+    try {
+      // Get current user
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+
+      // Update database social_privacy field
+      const { error } = await supabase
+        .from('users')
+        .update({ social_privacy: true })
+        .eq('id', currentUser.id);
+
+      if (error) {
+        console.error('❌ Failed to update social_privacy:', error);
+        throw error;
+      }
+
+      // Update localStorage as backup
+      localStorage.setItem('socialOptIn', 'true');
+      setShowPrivacyPrompt(false);
+      
+      toast({
+        title: "Social Features Enabled",
+        description: "You can now connect with friends and share your wellness journey!",
+      });
+    } catch (error: any) {
+      console.error('❌ Error enabling social features:', error);
+      toast({
+        title: "Error",
+        description: "Failed to enable social features. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSearch = async () => {
@@ -869,6 +912,53 @@ export default function Social() {
     }
   };
 
+  // Check social privacy setting on mount
+  useEffect(() => {
+    const checkSocialPrivacy = async () => {
+      try {
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        
+        if (!currentUser) {
+          setIsCheckingSocialPrivacy(false);
+          return;
+        }
+
+        // Check database for social_privacy setting
+        const { data: userData, error } = await supabase
+          .from('users')
+          .select('social_privacy')
+          .eq('id', currentUser.id)
+          .single();
+
+        if (error) {
+          console.error('❌ Error checking social_privacy:', error);
+          // If there's an error, check localStorage as fallback
+          const hasOptedIn = localStorage.getItem('socialOptIn') === 'true';
+          setShowPrivacyPrompt(!hasOptedIn);
+        } else {
+          // If social_privacy is true or null (defaults to true), don't show prompt
+          const socialPrivacy = userData?.social_privacy ?? null;
+          const hasOptedIn = socialPrivacy === true || socialPrivacy === null;
+          setShowPrivacyPrompt(!hasOptedIn);
+          
+          // Sync localStorage with database
+          if (hasOptedIn) {
+            localStorage.setItem('socialOptIn', 'true');
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error in checkSocialPrivacy:', error);
+        // Fallback to localStorage
+        const hasOptedIn = localStorage.getItem('socialOptIn') === 'true';
+        setShowPrivacyPrompt(!hasOptedIn);
+      } finally {
+        setIsCheckingSocialPrivacy(false);
+      }
+    };
+
+    checkSocialPrivacy();
+  }, []);
+
   // Load suggestions
   useEffect(() => {
     const loadSuggestions = async () => {
@@ -889,10 +979,10 @@ export default function Social() {
     };
 
     // Only load if user is authenticated and has opted into social features
-    if (!showPrivacyPrompt) {
+    if (!showPrivacyPrompt && !isCheckingSocialPrivacy) {
       loadSuggestions();
     }
-  }, [showPrivacyPrompt, toast]);
+  }, [showPrivacyPrompt, isCheckingSocialPrivacy, toast]);
 
   // Clear search results when search query is cleared
   useEffect(() => {
@@ -904,10 +994,10 @@ export default function Social() {
 
   // Load posts on component mount
   useEffect(() => {
-    if (!showPrivacyPrompt) {
+    if (!showPrivacyPrompt && !isCheckingSocialPrivacy) {
       loadPosts();
     }
-  }, [showPrivacyPrompt]);
+  }, [showPrivacyPrompt, isCheckingSocialPrivacy]);
 
   // Handle navigation from notifications
   useEffect(() => {
@@ -950,7 +1040,7 @@ export default function Social() {
   // Load friends for co-workout functionality
   useEffect(() => {
     const loadFriends = async () => {
-      if (!showPrivacyPrompt) {
+      if (!showPrivacyPrompt && !isCheckingSocialPrivacy) {
         setIsLoadingFriends(true);
         try {
           const friendsList = await friendService.getFriends();
@@ -963,7 +1053,7 @@ export default function Social() {
       }
     };
     loadFriends();
-  }, [showPrivacyPrompt]);
+  }, [showPrivacyPrompt, isCheckingSocialPrivacy]);
 
   useEffect(() => {
     const loadPosts = async () => {
@@ -984,14 +1074,88 @@ export default function Social() {
     };
 
     // Only load if user is authenticated and has opted into social features
-    if (!showPrivacyPrompt) {
+    if (!showPrivacyPrompt && !isCheckingSocialPrivacy) {
       loadPosts();
     }
-  }, [showPrivacyPrompt, toast]);
+  }, [showPrivacyPrompt, isCheckingSocialPrivacy, toast]);
+
+  // Load calendar events when scheduled workout modal opens
+  useEffect(() => {
+    const loadCalendarEvents = async () => {
+      if (showScheduledWorkoutModal && scheduledWorkoutStep === 1) {
+        setIsLoadingCalendarEvents(true);
+        try {
+          const { data: { user: currentUser } } = await supabase.auth.getUser();
+          if (!currentUser) throw new Error('Not authenticated');
+          
+          // Use the Google Calendar hook to fetch events
+          const { useGoogleCalendar } = await import('@/hooks/useGoogleCalendar');
+          
+          // Fetch events from Google Calendar API
+          const now = new Date();
+          const timeMin = now.toISOString();
+          const timeMax = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000)).toISOString(); // Next 30 days
+          
+          const params = new URLSearchParams({
+            userId: currentUser.id,
+            timeMin,
+            timeMax,
+            maxResults: '50',
+          });
+          
+          const response = await fetch(`${API_BASE_URL}/api/google/calendar/events?${params.toString()}`);
+          
+          if (response.ok) {
+            const data = await response.json();
+            const events = data.items || [];
+            
+            // Filter for workout-related events
+            const workoutEvents = events.filter((event: CalendarEvent) => {
+              const summary = event.summary?.toLowerCase() || '';
+              return summary.includes('workout') || 
+                     summary.includes('gym') || 
+                     summary.includes('exercise') || 
+                     summary.includes('training') ||
+                     summary.includes('fitness') ||
+                     summary.includes('yoga') ||
+                     summary.includes('run') ||
+                     summary.includes('cycling') ||
+                     summary.includes('swimming');
+            });
+            
+            setCalendarEvents(workoutEvents);
+          } else {
+            // If not connected to Google Calendar, show empty state
+            setCalendarEvents([]);
+          }
+        } catch (error) {
+          console.error('Error loading calendar events:', error);
+          setCalendarEvents([]);
+        } finally {
+          setIsLoadingCalendarEvents(false);
+        }
+      }
+    };
+    
+    loadCalendarEvents();
+  }, [showScheduledWorkoutModal, scheduledWorkoutStep]);
 
   // If viewing a friend's profile, show FriendProfile component
   if (viewingFriendId) {
     return <FriendProfile friendId={viewingFriendId} onBack={() => setViewingFriendId(null)} />;
+  }
+
+  // Show loading state while checking social privacy
+  if (isCheckingSocialPrivacy) {
+    return (
+      <WellnessLayout>
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          </div>
+        </div>
+      </WellnessLayout>
+    );
   }
 
   if (showPrivacyPrompt) {
@@ -1293,6 +1457,15 @@ export default function Social() {
                 <p className="text-sm text-muted-foreground">
                   Workout together with friends or challenge them to stay motivated!
                 </p>
+                <Button 
+                  variant="wellness" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={() => setShowScheduledWorkoutModal(true)}
+                >
+                  <Calendar className="w-4 h-4 mr-2" />
+                  Invite to Scheduled Workout
+                </Button>
                 <Button 
                   variant="zen" 
                   size="sm" 
@@ -1760,10 +1933,10 @@ export default function Social() {
         setShowChallengeModal(open);
         if (!open) {
           setChallengeStep(1);
-          setWorkoutType("");
+          setChallengeTimeOption("set");
+          setChallengeWorkoutForm("");
           setWorkoutTime("");
           setWorkoutDuration("");
-          setWorkoutPlace("");
           setWorkoutNote("");
           setSelectedFriends([]);
           setFriendSearchQuery("");
@@ -1795,11 +1968,73 @@ export default function Social() {
             {challengeStep === 1 ? (
               /* Step 1: Challenge Details */
               <div className="space-y-4">
+                {/* Time Option Selection */}
                 <div className="space-y-2">
-                  <Label htmlFor="challenge-workout-type">Workout Type *</Label>
-                  <Select value={workoutType} onValueChange={setWorkoutType}>
-                    <SelectTrigger id="challenge-workout-type">
-                      <SelectValue placeholder="Select workout type" />
+                  <Label>Challenge Time *</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      type="button"
+                      variant={challengeTimeOption === "set" ? "default" : "outline"}
+                      className="h-auto py-3 flex flex-col items-center gap-1"
+                      onClick={() => setChallengeTimeOption("set")}
+                    >
+                      <Calendar className="w-4 h-4" />
+                      <span className="text-xs">Set Time</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={challengeTimeOption === "flexible" ? "default" : "outline"}
+                      className="h-auto py-3 flex flex-col items-center gap-1"
+                      onClick={() => setChallengeTimeOption("flexible")}
+                    >
+                      <Users className="w-4 h-4" />
+                      <span className="text-xs">Receiver Chooses</span>
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {challengeTimeOption === "set" 
+                      ? "You'll set a specific date and time for the challenge" 
+                      : "Let your friend choose when to complete the challenge"}
+                  </p>
+                </div>
+
+                {/* Conditional Time/Duration Fields */}
+                {challengeTimeOption === "set" && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="challenge-workout-time">Date & Time *</Label>
+                      <Input
+                        id="challenge-workout-time"
+                        type="datetime-local"
+                        value={workoutTime}
+                        onChange={(e) => setWorkoutTime(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="challenge-workout-duration">Duration *</Label>
+                      <Select value={workoutDuration} onValueChange={setWorkoutDuration}>
+                        <SelectTrigger id="challenge-workout-duration">
+                          <SelectValue placeholder="Duration" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="15">15 min</SelectItem>
+                          <SelectItem value="30">30 min</SelectItem>
+                          <SelectItem value="45">45 min</SelectItem>
+                          <SelectItem value="60">1 hour</SelectItem>
+                          <SelectItem value="90">1.5 hours</SelectItem>
+                          <SelectItem value="120">2 hours</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+
+                {/* Workout Form Selection */}
+                <div className="space-y-2">
+                  <Label htmlFor="challenge-workout-form">Workout Form *</Label>
+                  <Select value={challengeWorkoutForm} onValueChange={setChallengeWorkoutForm}>
+                    <SelectTrigger id="challenge-workout-form">
+                      <SelectValue placeholder="Select workout form" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="strength">Strength Training</SelectItem>
@@ -1811,54 +2046,20 @@ export default function Social() {
                       <SelectItem value="cycling">Cycling</SelectItem>
                       <SelectItem value="swimming">Swimming</SelectItem>
                       <SelectItem value="sports">Sports</SelectItem>
+                      <SelectItem value="dance">Dance</SelectItem>
+                      <SelectItem value="martial_arts">Martial Arts</SelectItem>
+                      <SelectItem value="crossfit">CrossFit</SelectItem>
                       <SelectItem value="other">Other</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="challenge-workout-time">Date & Time *</Label>
-                    <Input
-                      id="challenge-workout-time"
-                      type="datetime-local"
-                      value={workoutTime}
-                      onChange={(e) => setWorkoutTime(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="challenge-workout-duration">Duration *</Label>
-                    <Select value={workoutDuration} onValueChange={setWorkoutDuration}>
-                      <SelectTrigger id="challenge-workout-duration">
-                        <SelectValue placeholder="Duration" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="15">15 min</SelectItem>
-                        <SelectItem value="30">30 min</SelectItem>
-                        <SelectItem value="45">45 min</SelectItem>
-                        <SelectItem value="60">1 hour</SelectItem>
-                        <SelectItem value="90">1.5 hours</SelectItem>
-                        <SelectItem value="120">2 hours</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
+                {/* Optional Notes */}
                 <div className="space-y-2">
-                  <Label htmlFor="challenge-workout-place">Place (Optional)</Label>
-                  <Input
-                    id="challenge-workout-place"
-                    placeholder="e.g., Central Park, Gold's Gym, Online"
-                    value={workoutPlace}
-                    onChange={(e) => setWorkoutPlace(e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="challenge-workout-note">Challenge Note (Optional)</Label>
+                  <Label htmlFor="challenge-workout-note">Challenge Description (Optional)</Label>
                   <Textarea
                     id="challenge-workout-note"
-                    placeholder="Add challenge rules or details..."
+                    placeholder="Add extra details about the challenge (e.g., 'Let's see who can do more push-ups!' or 'Complete a 5K run')"
                     value={workoutNote}
                     onChange={(e) => setWorkoutNote(e.target.value)}
                     rows={3}
@@ -1972,10 +2173,10 @@ export default function Social() {
                   onClick={() => {
                     setShowChallengeModal(false);
                     setChallengeStep(1);
-                    setWorkoutType("");
+                    setChallengeTimeOption("set");
+                    setChallengeWorkoutForm("");
                     setWorkoutTime("");
                     setWorkoutDuration("");
-                    setWorkoutPlace("");
                     setWorkoutNote("");
                   }}
                 >
@@ -1983,8 +2184,30 @@ export default function Social() {
                 </Button>
                 <Button 
                   variant="motivation"
-                  disabled={!workoutType || !workoutTime || !workoutDuration}
-                  onClick={() => setChallengeStep(2)}
+                  disabled={
+                    !challengeWorkoutForm || 
+                    (challengeTimeOption === "set" && (!workoutTime || !workoutDuration))
+                  }
+                  onClick={() => {
+                    // Load friends when moving to step 2
+                    setIsLoadingFriends(true);
+                    friendService.getFriends()
+                      .then(friendsList => {
+                        setFriends(friendsList);
+                      })
+                      .catch(error => {
+                        console.error('Failed to load friends:', error);
+                        toast({
+                          title: "Error",
+                          description: "Failed to load friends list",
+                          variant: "destructive",
+                        });
+                      })
+                      .finally(() => {
+                        setIsLoadingFriends(false);
+                      });
+                    setChallengeStep(2);
+                  }}
                 >
                   Next: Select Friends
                 </Button>
@@ -2022,16 +2245,18 @@ export default function Social() {
                           user_id: friend.id,
                           type: 'workout_challenge',
                           title: 'Workout Challenge',
-                          message: `${userProfile?.first_name || 'Someone'} ${userProfile?.last_name || ''} challenged you to a ${workoutType} workout competition!`,
+                          message: challengeTimeOption === "set"
+                            ? `${userProfile?.first_name || 'Someone'} ${userProfile?.last_name || ''} challenged you to a ${challengeWorkoutForm} workout!`
+                            : `${userProfile?.first_name || 'Someone'} ${userProfile?.last_name || ''} challenged you to a ${challengeWorkoutForm} workout - complete it on your own time!`,
                           data: {
                             challenger_id: currentUser.id,
                             challenger_name: `${userProfile?.first_name} ${userProfile?.last_name}`,
                             challenger_username: userProfile?.username,
                             challenge_type: 'workout_challenge',
-                            workout_type: workoutType,
-                            workout_time: workoutTime,
-                            workout_duration: workoutDuration,
-                            workout_place: workoutPlace || null,
+                            workout_form: challengeWorkoutForm,
+                            time_option: challengeTimeOption,
+                            workout_time: challengeTimeOption === "set" ? workoutTime : null,
+                            workout_duration: challengeTimeOption === "set" ? workoutDuration : null,
                             workout_note: workoutNote || null
                           },
                           read: false
@@ -2064,10 +2289,10 @@ export default function Social() {
                       setChallengeStep(1);
                       setSelectedFriends([]);
                       setFriendSearchQuery("");
-                      setWorkoutType("");
+                      setChallengeTimeOption("set");
+                      setChallengeWorkoutForm("");
                       setWorkoutTime("");
                       setWorkoutDuration("");
-                      setWorkoutPlace("");
                       setWorkoutNote("");
                     } catch (error: any) {
                       console.error('❌ Error sending challenge:', error);
@@ -2751,6 +2976,343 @@ export default function Social() {
               Post not found
             </p>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Invite to Scheduled Workout Modal */}
+      <Dialog open={showScheduledWorkoutModal} onOpenChange={(open) => {
+        setShowScheduledWorkoutModal(open);
+        if (!open) {
+          setScheduledWorkoutStep(1);
+          setSelectedCalendarEvent(null);
+          setSelectedFriends([]);
+          setFriendSearchQuery("");
+          setCalendarEvents([]);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-primary" />
+              Invite to Scheduled Workout
+            </DialogTitle>
+            <DialogDescription>
+              {scheduledWorkoutStep === 1 ? "Select a workout from your calendar." : "Select friends to invite to your workout."}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {/* Step Indicator */}
+          <div className="flex items-center justify-center gap-2 py-2">
+            <div className={`flex items-center justify-center w-8 h-8 rounded-full ${scheduledWorkoutStep === 1 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+              1
+            </div>
+            <div className="w-12 h-0.5 bg-muted"></div>
+            <div className={`flex items-center justify-center w-8 h-8 rounded-full ${scheduledWorkoutStep === 2 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+              2
+            </div>
+          </div>
+          
+          <div className="space-y-4 py-4">
+            {scheduledWorkoutStep === 1 ? (
+              /* Step 1: Select Scheduled Workout */
+              <div className="space-y-4">
+                {isLoadingCalendarEvents ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                    <span className="ml-2 text-sm text-muted-foreground">Loading your calendar events...</span>
+                  </div>
+                ) : calendarEvents.length > 0 ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Select a Workout Event</Label>
+                      <div className="space-y-2 max-h-[400px] overflow-y-auto border rounded-lg p-2">
+                        {calendarEvents.map((event) => {
+                          const isSelected = selectedCalendarEvent?.id === event.id;
+                          const startDate = event.start.dateTime ? new Date(event.start.dateTime) : event.start.date ? new Date(event.start.date) : null;
+                          const endDate = event.end.dateTime ? new Date(event.end.dateTime) : event.end.date ? new Date(event.end.date) : null;
+                          
+                          return (
+                            <div
+                              key={event.id}
+                              onClick={() => setSelectedCalendarEvent(event)}
+                              className={cn(
+                                "p-3 rounded-lg border cursor-pointer transition-all",
+                                isSelected ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/50"
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="font-medium text-sm truncate">{event.summary}</h4>
+                                  {event.description && (
+                                    <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                                      {event.description}
+                                    </p>
+                                  )}
+                                  <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                                    {startDate && (
+                                      <div className="flex items-center gap-1">
+                                        <Calendar className="w-3 h-3" />
+                                        <span>
+                                          {startDate.toLocaleDateString('en-US', { 
+                                            month: 'short', 
+                                            day: 'numeric',
+                                            hour: event.start.dateTime ? 'numeric' : undefined,
+                                            minute: event.start.dateTime ? '2-digit' : undefined
+                                          })}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {event.location && (
+                                      <div className="flex items-center gap-1 truncate">
+                                        <span className="truncate">{event.location}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                <Check
+                                  className={cn(
+                                    "w-5 h-5 flex-shrink-0",
+                                    isSelected ? "opacity-100 text-primary" : "opacity-0"
+                                  )}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    
+                    {selectedCalendarEvent && (
+                      <div className="p-3 bg-muted rounded-lg">
+                        <p className="text-sm font-medium mb-1">Selected Workout:</p>
+                        <p className="text-sm text-muted-foreground">{selectedCalendarEvent.summary}</p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-center py-8">
+                    <Calendar className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                    <p className="text-muted-foreground mb-2">No upcoming workout events found</p>
+                    <p className="text-sm text-muted-foreground">
+                      Connect your Google Calendar or create workout events to invite friends.
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : isLoadingFriends ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            ) : friends.length > 0 ? (
+              /* Step 2: Friend Selection */
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Select Friends</label>
+                  <Command className="border rounded-lg">
+                    <CommandInput 
+                      placeholder="Search friends..." 
+                      value={friendSearchQuery}
+                      onValueChange={setFriendSearchQuery}
+                    />
+                    <CommandList>
+                      <CommandEmpty>No friends found.</CommandEmpty>
+                      <CommandGroup>
+                        {friends
+                          .filter(friend => 
+                            !friendSearchQuery || 
+                            `${friend.first_name} ${friend.last_name}`.toLowerCase().includes(friendSearchQuery.toLowerCase()) ||
+                            friend.username?.toLowerCase().includes(friendSearchQuery.toLowerCase())
+                          )
+                          .map((friend) => (
+                            <CommandItem
+                              key={friend.id}
+                              value={friend.id}
+                              onSelect={() => {
+                                setSelectedFriends(prev => {
+                                  const isSelected = prev.some(f => f.id === friend.id);
+                                  if (isSelected) {
+                                    return prev.filter(f => f.id !== friend.id);
+                                  } else {
+                                    return [...prev, friend];
+                                  }
+                                });
+                              }}
+                              className="cursor-pointer"
+                            >
+                              <div className="flex items-center gap-3 flex-1">
+                                <Avatar className="w-8 h-8">
+                                  <AvatarFallback className="bg-gradient-primary text-white text-xs">
+                                    {friend.first_name[0]}{friend.last_name[0]}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium">
+                                    {friend.first_name} {friend.last_name}
+                                  </p>
+                                  {friend.username && (
+                                    <p className="text-xs text-muted-foreground">
+                                      @{friend.username}
+                                    </p>
+                                  )}
+                                </div>
+                                <Check
+                                  className={cn(
+                                    "w-4 h-4",
+                                    selectedFriends.some(f => f.id === friend.id) ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                              </div>
+                            </CommandItem>
+                          ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </div>
+                
+                {selectedFriends.length > 0 && (
+                  <div className="p-3 bg-muted rounded-lg">
+                    <p className="text-sm font-medium mb-2">Selected Friends ({selectedFriends.length}):</p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedFriends.map(friend => (
+                        <Badge
+                          key={friend.id}
+                          variant="secondary"
+                          className="px-2 py-1 cursor-pointer hover:bg-destructive/10"
+                          onClick={() => setSelectedFriends(prev => prev.filter(f => f.id !== friend.id))}
+                        >
+                          {friend.first_name} {friend.last_name}
+                          <X className="w-3 h-3 ml-1" />
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                <p className="text-muted-foreground">No friends found. Add friends to invite them to workouts!</p>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            {scheduledWorkoutStep === 1 ? (
+              <Button 
+                variant="wellness" 
+                onClick={async () => {
+                  if (!selectedCalendarEvent) {
+                    toast({
+                      title: "Select a workout",
+                      description: "Please select a workout event to continue.",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  
+                  // Load friends for step 2
+                  setIsLoadingFriends(true);
+                  setScheduledWorkoutStep(2);
+                  
+                  try {
+                    const { data: { user: currentUser } } = await supabase.auth.getUser();
+                    if (!currentUser) throw new Error('Not authenticated');
+                    
+                    const friendsList = await friendService.getFriends();
+                    setFriends(friendsList);
+                  } catch (error) {
+                    console.error('Error loading friends:', error);
+                    toast({
+                      title: "Error",
+                      description: "Failed to load friends list.",
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setIsLoadingFriends(false);
+                  }
+                }}
+                disabled={!selectedCalendarEvent}
+              >
+                Next
+              </Button>
+            ) : (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setScheduledWorkoutStep(1)}
+                >
+                  Back
+                </Button>
+                <Button 
+                  variant="wellness" 
+                  onClick={async () => {
+                    if (selectedFriends.length === 0) {
+                      toast({
+                        title: "Select friends",
+                        description: "Please select at least one friend to invite.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    
+                    try {
+                      const { data: { user: currentUser } } = await supabase.auth.getUser();
+                      if (!currentUser) throw new Error('Not authenticated');
+                      
+                      // Get user profile for notification
+                      const { data: userProfile } = await supabase
+                        .from('users')
+                        .select('first_name, last_name, username')
+                        .eq('id', currentUser.id)
+                        .single();
+                      
+                      // Send notifications to each selected friend
+                      const notificationPromises = selectedFriends.map(friend =>
+                        notificationService.createNotification({
+                          user_id: friend.id,
+                          type: 'scheduled_workout_invitation',
+                          title: 'Scheduled Workout Invitation',
+                          message: `${userProfile?.first_name || 'Someone'} ${userProfile?.last_name || ''} invited you to join their workout: ${selectedCalendarEvent?.summary}`,
+                          data: {
+                            inviter_id: currentUser.id,
+                            inviter_name: `${userProfile?.first_name || ''} ${userProfile?.last_name || ''}`.trim(),
+                            inviter_username: userProfile?.username || '',
+                            event_id: selectedCalendarEvent?.id,
+                            event_summary: selectedCalendarEvent?.summary,
+                            event_start: selectedCalendarEvent?.start.dateTime || selectedCalendarEvent?.start.date,
+                            event_end: selectedCalendarEvent?.end.dateTime || selectedCalendarEvent?.end.date,
+                            event_location: selectedCalendarEvent?.location,
+                            event_description: selectedCalendarEvent?.description,
+                          },
+                          read: false,
+                        })
+                      );
+                      
+                      await Promise.all(notificationPromises);
+                      
+                      toast({
+                        title: "Invitations sent!",
+                        description: `Successfully invited ${selectedFriends.length} friend${selectedFriends.length > 1 ? 's' : ''} to your workout.`,
+                      });
+                      
+                      setShowScheduledWorkoutModal(false);
+                    } catch (error) {
+                      console.error('Error sending invitations:', error);
+                      toast({
+                        title: "Error",
+                        description: "Failed to send invitations. Please try again.",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  disabled={selectedFriends.length === 0}
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  Send Invitations
+                </Button>
+              </>
+            )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </WellnessLayout>

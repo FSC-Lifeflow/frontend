@@ -174,9 +174,11 @@ export const userService = {
   },
 
   /**
-   * Gets the count of AI-scheduled workouts this week
+   * Gets the count of workouts scheduled through the site this week
+   * Includes both manually logged workouts and AI-scheduled workouts
+   * Excludes external imports (e.g., Fitbit syncs)
    * Uses a database function to bypass RLS for public access
-   * @returns Count of AI-scheduled workouts this week across all users
+   * @returns Count of workouts scheduled this week across all users
    */
   async getAIWorkoutsThisWeek(): Promise<number> {
     try {
@@ -184,13 +186,13 @@ export const userService = {
         .rpc('get_ai_workouts_this_week');
 
       if (error) {
-        console.error('❌ Failed to get AI workouts this week:', error);
-        throw new Error('Failed to get AI workouts this week');
+        console.error('❌ Failed to get scheduled workouts this week:', error);
+        throw new Error('Failed to get scheduled workouts this week');
       }
 
       return data || 0;
     } catch (error) {
-      console.error('❌ Get AI workouts this week error:', error);
+      console.error('❌ Get scheduled workouts this week error:', error);
       throw error;
     }
   },

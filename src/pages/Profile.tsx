@@ -31,6 +31,7 @@ import { authService } from "@/services/authService";
 import { notificationService, type Notification } from "@/services/notificationService";
 import { friendService, type SearchUser } from "@/services/friendService";
 import { AvatarUploader } from "@/components/AvatarUploader";
+import { WorkoutCompletionDialog } from "@/components/WorkoutCompletionDialog";
 import { supabase } from "@/lib/supabase";
 
 // Extend service types locally to match actual payload shape used in this component
@@ -77,6 +78,8 @@ export default function Profile() {
     created_at: string;
   }>>([]);
   const [loadingBlockedUsers, setLoadingBlockedUsers] = useState(false);
+  const [showWorkoutCompletionDialog, setShowWorkoutCompletionDialog] = useState(false);
+  const [selectedWorkoutCompletion, setSelectedWorkoutCompletion] = useState<NotificationWithRead | null>(null);
 
   // Profile data with default values
   const [profileData, setProfileData] = useState({
@@ -454,6 +457,8 @@ export default function Profile() {
         return "💪";
       case "workout_invitation":
         return "📅";
+      case "scheduled_workout_invitation":
+        return "📆";
       case "workout_challenge":
         return "⚡";
       case "motivation_received":
@@ -1226,6 +1231,104 @@ export default function Profile() {
                               </>
                             )}
 
+                            {/* Scheduled Workout Invitation Actions */}
+                            {notification.type === 'scheduled_workout_invitation' && (
+                              <>
+                                {/* Expandable Details Button */}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setExpandedNotifications(prev => {
+                                      const newSet = new Set(prev);
+                                      if (newSet.has(notification.id)) {
+                                        newSet.delete(notification.id);
+                                      } else {
+                                        newSet.add(notification.id);
+                                      }
+                                      return newSet;
+                                    });
+                                  }}
+                                  className="h-7 px-2 text-xs mt-2 w-full justify-between"
+                                >
+                                  <span>View Event Details</span>
+                                  {expandedNotifications.has(notification.id) ? (
+                                    <ChevronUp className="w-4 h-4" />
+                                  ) : (
+                                    <ChevronDown className="w-4 h-4" />
+                                  )}
+                                </Button>
+
+                                {/* Expanded Event Details */}
+                                {expandedNotifications.has(notification.id) && notification.data && (
+                                  <div className="mt-2 p-3 bg-muted/50 rounded-md space-y-2 text-xs">
+                                    {notification.data.event_summary && (
+                                      <div className="flex items-center gap-2">
+                                        <FileText className="w-3 h-3 text-muted-foreground" />
+                                        <span className="font-medium">Event:</span>
+                                        <span>{notification.data.event_summary}</span>
+                                      </div>
+                                    )}
+                                    {notification.data.event_start && (
+                                      <div className="flex items-center gap-2">
+                                        <Calendar className="w-3 h-3 text-muted-foreground" />
+                                        <span className="font-medium">Start:</span>
+                                        <span>{new Date(notification.data.event_start).toLocaleString()}</span>
+                                      </div>
+                                    )}
+                                    {notification.data.event_end && (
+                                      <div className="flex items-center gap-2">
+                                        <Clock className="w-3 h-3 text-muted-foreground" />
+                                        <span className="font-medium">End:</span>
+                                        <span>{new Date(notification.data.event_end).toLocaleString()}</span>
+                                      </div>
+                                    )}
+                                    {notification.data.event_location && (
+                                      <div className="flex items-center gap-2">
+                                        <MapPin className="w-3 h-3 text-muted-foreground" />
+                                        <span className="font-medium">Location:</span>
+                                        <span>{notification.data.event_location}</span>
+                                      </div>
+                                    )}
+                                    {notification.data.event_description && (
+                                      <div className="flex items-start gap-2">
+                                        <FileText className="w-3 h-3 text-muted-foreground mt-0.5" />
+                                        <span className="font-medium">Description:</span>
+                                        <span className="flex-1">{notification.data.event_description}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                <div className="flex flex-wrap gap-2 mt-3">
+                                  <Button
+                                    size="sm"
+                                    variant="wellness"
+                                    onClick={async () => {
+                                      toast({
+                                        title: "Invitation Accepted",
+                                        description: "You've accepted the workout invitation!",
+                                      });
+                                      await handleRemoveNotification(notification.id);
+                                    }}
+                                    className="h-7 px-3 text-xs flex-1 sm:flex-none"
+                                  >
+                                    <Check className="w-3 h-3 mr-1" />
+                                    Accept
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleRemoveNotification(notification.id)}
+                                    className="h-7 px-3 text-xs flex-1 sm:flex-none"
+                                  >
+                                    <X className="w-3 h-3 mr-1" />
+                                    Decline
+                                  </Button>
+                                </div>
+                              </>
+                            )}
+
                             {/* Workout Challenge Actions */}
                             {notification.type === 'workout_challenge' && (
                               <>
@@ -1259,30 +1362,33 @@ export default function Profile() {
                                   <div className="mt-2 p-3 bg-muted/50 rounded-md space-y-2 text-xs">
                                     <div className="flex items-center gap-2">
                                       <FileText className="w-3 h-3 text-muted-foreground" />
-                                      <span className="font-medium">Type:</span>
-                                      <span className="capitalize">{notification.data.workout_type}</span>
+                                      <span className="font-medium">Workout Form:</span>
+                                      <span className="capitalize">{notification.data.workout_form || notification.data.workout_type}</span>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                      <Calendar className="w-3 h-3 text-muted-foreground" />
-                                      <span className="font-medium">When:</span>
-                                      <span>{new Date(notification.data.workout_time).toLocaleString()}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <Clock className="w-3 h-3 text-muted-foreground" />
-                                      <span className="font-medium">Duration:</span>
-                                      <span>{notification.data.workout_duration} min</span>
-                                    </div>
-                                    {notification.data.workout_place && (
+                                    {notification.data.time_option === "set" && notification.data.workout_time ? (
+                                      <>
+                                        <div className="flex items-center gap-2">
+                                          <Calendar className="w-3 h-3 text-muted-foreground" />
+                                          <span className="font-medium">When:</span>
+                                          <span>{new Date(notification.data.workout_time).toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <Clock className="w-3 h-3 text-muted-foreground" />
+                                          <span className="font-medium">Duration:</span>
+                                          <span>{notification.data.workout_duration} min</span>
+                                        </div>
+                                      </>
+                                    ) : (
                                       <div className="flex items-center gap-2">
-                                        <MapPin className="w-3 h-3 text-muted-foreground" />
-                                        <span className="font-medium">Place:</span>
-                                        <span>{notification.data.workout_place}</span>
+                                        <Clock className="w-3 h-3 text-muted-foreground" />
+                                        <span className="font-medium">Timing:</span>
+                                        <span className="text-primary">Complete on your own time</span>
                                       </div>
                                     )}
                                     {notification.data.workout_note && (
                                       <div className="flex items-start gap-2">
                                         <FileText className="w-3 h-3 text-muted-foreground mt-0.5" />
-                                        <span className="font-medium">Challenge Note:</span>
+                                        <span className="font-medium">Description:</span>
                                         <span className="flex-1">{notification.data.workout_note}</span>
                                       </div>
                                     )}
@@ -1360,6 +1466,33 @@ export default function Profile() {
                                 >
                                   <Users className="w-3 h-3 mr-1" />
                                   Send Motivation
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleRemoveNotification(notification.id)}
+                                  className="h-7 px-3 text-xs flex-1"
+                                >
+                                  <X className="w-3 h-3 mr-1" />
+                                  Dismiss
+                                </Button>
+                              </div>
+                            )}
+
+                            {/* Workout Completion Prompt Actions */}
+                            {notification.type === 'workout_completion_prompt' && (
+                              <div className="flex gap-2 mt-3">
+                                <Button
+                                  size="sm"
+                                  variant="motivation"
+                                  onClick={() => {
+                                    setSelectedWorkoutCompletion(notification);
+                                    setShowWorkoutCompletionDialog(true);
+                                  }}
+                                  className="h-7 px-3 text-xs flex-1"
+                                >
+                                  <Check className="w-3 h-3 mr-1" />
+                                  Respond
                                 </Button>
                                 <Button
                                   size="sm"
@@ -1584,6 +1717,24 @@ export default function Profile() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          {/* Workout Completion Dialog */}
+          {selectedWorkoutCompletion?.data && (
+            <WorkoutCompletionDialog
+              open={showWorkoutCompletionDialog}
+              onOpenChange={setShowWorkoutCompletionDialog}
+              notificationData={selectedWorkoutCompletion.data}
+              onComplete={async () => {
+                // Remove notification and refresh
+                if (selectedWorkoutCompletion) {
+                  await handleRemoveNotification(selectedWorkoutCompletion.id);
+                  setSelectedWorkoutCompletion(null);
+                }
+                await fetchNotifications();
+                await refreshUnreadCount();
+              }}
+            />
+          )}
         </div>
       </div>
     </WellnessLayout>
