@@ -5,10 +5,13 @@ import { GoogleCalendar } from "../components/GoogleCalendar";
 import { FitbitData } from "../components/FitbitData";
 import { ManualWorkoutDialog } from "../components/ManualWorkoutDialog";
 import { UpNextWorkouts } from "../components/UpNextWorkouts";
+import { ChatInterface } from "../components/ChatInterface";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { 
   Activity, 
   Calendar, 
@@ -25,6 +28,8 @@ import {
 function Dashboard() {
   
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [showChat, setShowChat] = useState(false);
 
   // Get time-based greeting
   const getGreeting = () => {
@@ -67,6 +72,7 @@ function Dashboard() {
   ];
 
   return (
+    <>
     <WellnessLayout>
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
@@ -154,11 +160,11 @@ function Dashboard() {
                     </Button>
                   }
                 />
-                <Button variant="zen" className="w-full justify-start" size="sm">
+                <Button variant="zen" className="w-full justify-start" size="sm" onClick={() => navigate('/profile')}>
                   <Heart className="w-4 h-4 mr-2" />
                   Update Health Data
                 </Button>
-                <Button variant="zen" className="w-full justify-start" size="sm">
+                <Button variant="zen" className="w-full justify-start" size="sm" onClick={() => setShowChat(true)}>
                   <Calendar className="w-4 h-4 mr-2" />
                   Reschedule Workout
                 </Button>
@@ -168,8 +174,13 @@ function Dashboard() {
         </div>
 
       </div>
-
     </WellnessLayout>
+
+    {/* Chat Interface */}
+    {showChat && (
+      <ChatInterface onClose={() => setShowChat(false)} />
+    )}
+    </>
   );
 }
 
