@@ -85,6 +85,7 @@ export default function Profile() {
   const [profileData, setProfileData] = useState({
     name: "",
     email: "",
+    username: "",
     profilePicture: "",
     fitnessLevel: "",
     primaryGoals: "",
@@ -120,6 +121,7 @@ export default function Profile() {
           ...prev,
           name: `${user.first_name} ${user.last_name}`,
           email: user.email,
+          username: user.username || "",
           fitnessLevel: user.fitness_level || "",
           primaryGoals: user.primary_goals || "",
           exercisePreferences: user.exercise_preferences || "",
@@ -810,6 +812,15 @@ export default function Profile() {
                           value={profileData.email}
                           readOnly
                           className="bg-gray-50 cursor-not-allowed"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="username">Username</Label>
+                        <Input
+                          id="username"
+                          value={profileData.username}
+                          readOnly
+                          className="bg-gray-50 cursor-not-allowed text-muted-foreground"
                         />
                       </div>
                     </div>
