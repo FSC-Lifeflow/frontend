@@ -379,7 +379,7 @@ export function ChatInterface({ onClose }: ChatInterfaceProps) {
                     ? "bg-gradient-motivation text-white ml-auto"
                     : "bg-muted text-foreground"
                 )}>
-                  <div className="text-sm prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-ul:my-2 prose-li:my-1 prose-strong:font-semibold">
+                  <div className="text-sm prose max-w-none dark:prose-invert prose-p:my-3 prose-ul:my-3 prose-li:my-1.5 prose-strong:font-semibold prose-h3:mt-4 prose-h3:mb-2 prose-h3:text-base prose-h2:mt-5 prose-h2:mb-3 leading-relaxed">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {message.content}
                     </ReactMarkdown>
