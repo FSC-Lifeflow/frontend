@@ -12,6 +12,7 @@ import {
   Users, 
   Settings, 
   MessageCircle,
+  MessageSquare,
   Menu,
   X,
   LogOut
@@ -21,6 +22,7 @@ const navigationItems = [
   { icon: Home, label: "Dashboard", path: "/" },
   { icon: User, label: "Profile", path: "/profile" },
   { icon: Users, label: "Social", path: "/social" },
+  { icon: MessageSquare, label: "Messages", path: "/messages" },
   { icon: Settings, label: "Settings", path: "/settings" },
 ];
 

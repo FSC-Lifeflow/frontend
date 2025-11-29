@@ -17,6 +17,7 @@ import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import Social from "./pages/Social";
+import Messages from "./pages/Messages";
 import Settings from "./pages/Settings";
 import Register from "./pages/Register";
 import SignIn from "./pages/SignIn";
@@ -56,6 +57,7 @@ const AppContent = () => {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/social" element={<Social />} />
+            <Route path="/messages" element={<Messages />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/complete-profile" element={<CompleteProfile />} />
           </Route>
