@@ -6,7 +6,171 @@ import fetch from 'node-fetch';
  */
 export function setupGoogleRoutes(app, supabase, tokenService, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, FRONTEND_URL) {
   
-  // Generate Google OAuth authorization URL
+  // Generate Google OAuth authorization URL for LOGIN (not calendar)
+  app.get('/auth/google/url', (req, res) => {
+    const { redirectUri } = req.query;
+    
+    if (!GOOGLE_CLIENT_ID) {
+      return res.status(500).json({ error: 'Google OAuth not configured' });
+    }
+
+    const finalRedirectUri = redirectUri || `${req.protocol}://${req.get('host')}/auth/google/callback/mobile`;
+
+    const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+    authUrl.searchParams.append('client_id', GOOGLE_CLIENT_ID);
+    authUrl.searchParams.append('redirect_uri', finalRedirectUri);
+    authUrl.searchParams.append('response_type', 'code');
+    authUrl.searchParams.append('scope', 'openid email profile');
+    authUrl.searchParams.append('access_type', 'offline');
+    authUrl.searchParams.append('prompt', 'consent');
+
+    res.json({ authUrl: authUrl.toString() });
+  });
+
+  // Handle Google OAuth callback for LOGIN (creates/logs in user)
+  app.get('/auth/google/callback/mobile', async (req, res) => {
+    try {
+      const { code } = req.query;
+
+      if (!code) {
+        return res.status(400).send('Missing authorization code');
+      }
+
+      if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+        return res.status(500).send('Server configuration error');
+      }
+
+      const protocol = req.get('x-forwarded-proto') || req.protocol;
+      const redirectUri = `${protocol}://${req.get('host')}/auth/google/callback/mobile`;
+
+      console.log('Exchanging code for tokens (login)...');
+
+      // Exchange code for tokens
+      const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          code: code,
+          client_id: GOOGLE_CLIENT_ID,
+          client_secret: GOOGLE_CLIENT_SECRET,
+          redirect_uri: redirectUri,
+          grant_type: 'authorization_code',
+        }),
+      });
+
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text();
+        console.error('Google token exchange error:', errorText);
+        return res.status(500).send('Token exchange failed');
+      }
+
+      const tokens = await tokenResponse.json();
+
+      // Get user info from Google
+      const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { Authorization: `Bearer ${tokens.access_token}` },
+      });
+
+      if (!userInfoResponse.ok) {
+        console.error('Failed to get user info');
+        return res.status(500).send('Failed to get user info');
+      }
+
+      const googleUser = await userInfoResponse.json();
+      console.log('Google user:', googleUser.email);
+
+      // Check if user exists in Supabase
+      const { data: existingUsers } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', googleUser.email);
+
+      let userId;
+      
+      if (existingUsers && existingUsers.length > 0) {
+        // User exists
+        userId = existingUsers[0].id;
+        console.log('Existing user found:', userId);
+      } else {
+        // Create new user in Supabase Auth
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+          email: googleUser.email,
+          email_confirm: true,
+          user_metadata: {
+            first_name: googleUser.given_name || '',
+            last_name: googleUser.family_name || '',
+            avatar_url: googleUser.picture,
+          },
+        });
+
+        if (authError || !authData.user) {
+          console.error('Failed to create auth user:', authError);
+          return res.status(500).send('Failed to create user');
+        }
+
+        userId = authData.user.id;
+
+        // Create user profile
+        const { error: profileError } = await supabase
+          .from('users')
+          .insert({
+            id: userId,
+            email: googleUser.email,
+            first_name: googleUser.given_name || '',
+            last_name: googleUser.family_name || '',
+            username: googleUser.email.split('@')[0],
+            avatar_url: googleUser.picture,
+          });
+
+        if (profileError) {
+          console.error('Failed to create user profile:', profileError);
+        }
+
+        console.log('New user created:', userId);
+      }
+
+      // Generate Supabase session token
+      const { data: sessionData, error: sessionError } = await supabase.auth.admin.generateLink({
+        type: 'magiclink',
+        email: googleUser.email,
+      });
+
+      if (sessionError || !sessionData) {
+        console.error('Failed to generate session:', sessionError);
+        return res.status(500).send('Failed to create session');
+      }
+
+      // Return success page with session info
+      res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Success</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <style>
+            body { font-family: system-ui; text-align: center; padding: 50px; }
+            .success { color: #10b981; font-size: 48px; }
+          </style>
+        </head>
+        <body>
+          <div class="success">✓</div>
+          <h1>Login Successful!</h1>
+          <p>You can close this window and return to the app.</p>
+          <script>
+            setTimeout(() => {
+              window.close();
+            }, 2000);
+          </script>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error('Google OAuth login error:', error);
+      res.status(500).send('Login failed');
+    }
+  });
+  
+  // Generate Google OAuth authorization URL for CALENDAR
   app.get('/api/google/auth-url', (req, res) => {
     const { userId, redirectUri } = req.query;
     
