@@ -47,7 +47,9 @@ export function setupGoogleRoutes(app, supabase, tokenService, GOOGLE_CLIENT_ID,
       }
 
       // Use the redirectUri from the query (the Expo app URI) or fall back to server URL
-      const finalRedirectUri = redirectUri || `${req.protocol}://${req.get('host')}/api/google/callback/mobile`;
+      // Force HTTPS for Railway deployment (Railway proxy uses HTTP internally but external is HTTPS)
+      const protocol = req.get('x-forwarded-proto') || req.protocol;
+      const finalRedirectUri = redirectUri || `${protocol}://${req.get('host')}/api/google/callback/mobile`;
 
       console.log('Exchanging code with redirect_uri:', finalRedirectUri);
 
