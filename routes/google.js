@@ -8,7 +8,7 @@ export function setupGoogleRoutes(app, supabase, tokenService, GOOGLE_CLIENT_ID,
   
   // Generate Google OAuth authorization URL
   app.get('/api/google/auth-url', (req, res) => {
-    const { userId } = req.query;
+    const { userId, redirectUri } = req.query;
     
     if (!userId) {
       return res.status(400).json({ error: 'User ID required' });
@@ -18,9 +18,12 @@ export function setupGoogleRoutes(app, supabase, tokenService, GOOGLE_CLIENT_ID,
       return res.status(500).json({ error: 'Google OAuth not configured' });
     }
 
+    // Use provided redirectUri (for mobile) or default GOOGLE_REDIRECT_URI (for web)
+    const finalRedirectUri = redirectUri || GOOGLE_REDIRECT_URI;
+
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     authUrl.searchParams.append('client_id', GOOGLE_CLIENT_ID);
-    authUrl.searchParams.append('redirect_uri', GOOGLE_REDIRECT_URI);
+    authUrl.searchParams.append('redirect_uri', finalRedirectUri);
     authUrl.searchParams.append('response_type', 'code');
     authUrl.searchParams.append('scope', 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar');
     authUrl.searchParams.append('access_type', 'offline');
@@ -30,7 +33,96 @@ export function setupGoogleRoutes(app, supabase, tokenService, GOOGLE_CLIENT_ID,
     res.json({ authUrl: authUrl.toString() });
   });
 
-  // Handle Google OAuth callback and save tokens to Supabase
+  // Handle Google OAuth callback for mobile (returns JSON instead of redirecting)
+  app.get('/api/google/callback/mobile', async (req, res) => {
+    try {
+      const { code, state, redirectUri } = req.query; // state contains userId
+
+      if (!code || !state) {
+        return res.status(400).json({ error: 'Missing code or state' });
+      }
+
+      if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+        return res.status(500).json({ error: 'Server configuration error' });
+      }
+
+      // Use the redirectUri from the query (the Expo app URI) or fall back to server URL
+      const finalRedirectUri = redirectUri || `${req.protocol}://${req.get('host')}/api/google/callback/mobile`;
+
+      console.log('Exchanging code with redirect_uri:', finalRedirectUri);
+
+      const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          code: code,
+          client_id: GOOGLE_CLIENT_ID,
+          client_secret: GOOGLE_CLIENT_SECRET,
+          redirect_uri: finalRedirectUri,
+          grant_type: 'authorization_code',
+        }),
+      });
+
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text();
+        console.error('Google token exchange error:', errorText);
+        return res.status(500).json({ error: 'Token exchange failed' });
+      }
+
+      const tokens = await tokenResponse.json();
+      const expiresAt = new Date(Date.now() + (tokens.expires_in * 1000));
+
+      const { error: dbError } = await supabase
+        .from('google_calendar_tokens')
+        .upsert({
+          user_id: state,
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          expires_at: expiresAt.toISOString(),
+          scope: tokens.scope,
+        }, {
+          onConflict: 'user_id',
+        });
+
+      if (dbError) {
+        console.error('Database error saving Google tokens:', dbError);
+        return res.status(500).json({ error: 'Database save failed' });
+      }
+
+      console.log(`Google Calendar connected successfully for user: ${state}`);
+      
+      // Return a simple HTML page that closes the browser and returns to the app
+      res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Success</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <style>
+            body { font-family: system-ui; text-align: center; padding: 50px; }
+            .success { color: #10b981; font-size: 48px; }
+          </style>
+        </head>
+        <body>
+          <div class="success">✓</div>
+          <h1>Calendar Connected!</h1>
+          <p>You can close this window and return to the app.</p>
+          <script>
+            // Try to close the window after a short delay
+            setTimeout(() => {
+              window.close();
+            }, 2000);
+          </script>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error('Google OAuth callback error:', error);
+      res.status(500).json({ error: 'Callback failed' });
+    }
+  });
+
+  // Handle Google OAuth callback and save tokens to Supabase (for web)
   app.get('/auth/google/callback', async (req, res) => {
     try {
       const { code, state } = req.query; // state contains userId

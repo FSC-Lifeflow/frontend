@@ -51,6 +51,7 @@ setupGoogleRoutes(app, supabase, tokenService, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_S
 setupFitbitDataRoutes(app, supabase, N8N_WEBHOOK_URL);
 
 
-app.listen(PORT, () => {
-  console.log(`Fitbit proxy server running on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Fitbit proxy server running on http://0.0.0.0:${PORT}`);
+  console.log(`Accessible from network at http://192.168.1.88:${PORT}`);
 });
