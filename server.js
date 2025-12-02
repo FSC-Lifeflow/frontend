@@ -13,7 +13,7 @@ import { setupFitbitDataRoutes } from './routes/fitbitData.js';
 dotenv.config({ path: '.env.server' });
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 // Environment variables
 const SUPABASE_URL = process.env.SUPABASE_URL;
