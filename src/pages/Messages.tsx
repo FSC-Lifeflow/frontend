@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -44,6 +45,7 @@ export default function Messages() {
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const subscriptionRef = useRef<any>(null);
+  const reactionSubscriptionRef = useRef<any>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch chat rooms
@@ -86,12 +88,47 @@ export default function Messages() {
       loadMessages(selectedRoom.chat_room_id);
       markAsRead(selectedRoom.chat_room_id);
 
-      // Subscribe to new messages
+      // Subscribe to new messages and updates
       subscriptionRef.current = messageService.subscribeToMessages(
         selectedRoom.chat_room_id,
-        (newMsg) => {
-          setMessages(prev => [...prev, newMsg]);
-          scrollToBottom();
+        (message, event) => {
+          if (event === 'INSERT') {
+            setMessages(prev => {
+              // Avoid duplicates - check if message already exists
+              const exists = prev.some(msg => msg.id === message.id);
+              if (exists) return prev;
+              return [...prev, message];
+            });
+            scrollToBottom();
+          } else if (event === 'UPDATE') {
+            setMessages(prev => 
+              prev.map(msg => msg.id === message.id ? message : msg)
+            );
+          } else if (event === 'DELETE') {
+            setMessages(prev => 
+              prev.map(msg => 
+                msg.id === message.id 
+                  ? { ...msg, is_deleted: true, content: 'This message was deleted' }
+                  : msg
+              )
+            );
+          }
+          
+          // Reload chat rooms to update last message preview
+          loadChatRooms();
+        }
+      );
+
+      // Subscribe to reaction changes
+      reactionSubscriptionRef.current = messageService.subscribeToReactions(
+        selectedRoom.chat_room_id,
+        (messageId, reactions) => {
+          console.log('🎉 Reaction update received for message:', messageId, reactions);
+          setMessages(prev =>
+            prev.map(msg =>
+              msg.id === messageId ? { ...msg, reactions } : msg
+            )
+          );
         }
       );
     }
@@ -99,6 +136,9 @@ export default function Messages() {
     return () => {
       if (subscriptionRef.current) {
         subscriptionRef.current.unsubscribe();
+      }
+      if (reactionSubscriptionRef.current) {
+        reactionSubscriptionRef.current.unsubscribe();
       }
     };
   }, [selectedRoom]);
@@ -151,8 +191,17 @@ export default function Messages() {
 
     try {
       setIsSending(true);
-      await messageService.sendMessage(selectedRoom.chat_room_id, newMessage.trim());
+      const sentMessage = await messageService.sendMessage(selectedRoom.chat_room_id, newMessage.trim());
+      
+      // Add message to local state immediately (optimistic update)
+      setMessages(prev => [...prev, sentMessage]);
+      
+      // Clear input and scroll to bottom
       setNewMessage("");
+      scrollToBottom();
+      
+      // Reload chat rooms to update last message preview
+      loadChatRooms();
     } catch (error) {
       console.error('Error sending message:', error);
       setTimeout(() => {
@@ -257,18 +306,43 @@ export default function Messages() {
   };
 
   const handleReaction = async (messageId: string, emoji: string) => {
+    if (!user) return;
+    
     try {
+      // The database will handle the toggle and real-time subscription will update UI
       await messageService.addReaction(messageId, emoji);
-      setTimeout(() => {
-        toast.success('Reaction added');
-      }, 0);
-      // In a real implementation, reactions would be stored and displayed
     } catch (error) {
       console.error('Error adding reaction:', error);
       setTimeout(() => {
         toast.error('Failed to add reaction');
       }, 0);
     }
+  };
+
+  const getReactionUserNames = (reaction: any) => {
+    // Use userDetails from the reaction data (populated by database)
+    const userNames: string[] = [];
+    
+    if (reaction.userDetails && reaction.userDetails.length > 0) {
+      reaction.userDetails.forEach((userDetail: any) => {
+        if (userDetail.id === user?.id) {
+          userNames.push('You');
+        } else {
+          userNames.push(userDetail.name);
+        }
+      });
+    } else {
+      // Fallback if userDetails not available
+      reaction.users.forEach((userId: string) => {
+        if (userId === user?.id) {
+          userNames.push('You');
+        } else {
+          userNames.push('Someone');
+        }
+      });
+    }
+    
+    return userNames;
   };
 
   const scrollToBottom = () => {
@@ -350,9 +424,9 @@ export default function Messages() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-200px)]">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Chat Room List */}
-          <Card className="lg:col-span-1">
+          <Card className="lg:col-span-1 flex flex-col h-[calc(100vh-200px)]">
             <CardHeader>
               <div className="flex items-center justify-between mb-4">
                 <CardTitle className="text-xl">Chats</CardTitle>
@@ -375,8 +449,8 @@ export default function Messages() {
                 />
               </div>
             </CardHeader>
-            <CardContent className="p-0">
-              <ScrollArea className="h-[calc(100vh-360px)]">
+            <CardContent className="p-0 flex-1 overflow-hidden">
+              <ScrollArea className="h-full">
                 {isLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -463,12 +537,12 @@ export default function Messages() {
           </Card>
 
           {/* Chat Window */}
-          <Card className="lg:col-span-2">
-            <CardContent className="p-0 h-full">
+          <Card className="lg:col-span-2 flex flex-col">
+            <CardContent className="p-0 flex flex-col h-[calc(100vh-200px)]">
               {selectedRoom ? (
                 <div className="flex flex-col h-full">
                   {/* Chat Header */}
-                  <div className="border-b p-4">
+                  <div className="border-b p-4 flex-shrink-0">
                     <div className="flex items-center gap-3">
                       <Avatar>
                         <AvatarImage src={selectedRoom.avatar_url} />
@@ -492,7 +566,7 @@ export default function Messages() {
                   </div>
 
                   {/* Messages Area */}
-                  <ScrollArea className="flex-1 p-4">
+                  <ScrollArea className="flex-1 p-4 overflow-y-auto">
                     {messages.length === 0 ? (
                       <div className="flex items-center justify-center h-full">
                         <div className="text-center text-muted-foreground">
@@ -606,6 +680,42 @@ export default function Messages() {
                                     </div>
                                   )}
                                 </div>
+                                
+                                {/* Reactions Display */}
+                                {message.reactions && message.reactions.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    <TooltipProvider>
+                                      {message.reactions.map((reaction) => {
+                                        const userNames = getReactionUserNames(reaction);
+                                        const tooltipText = userNames.length <= 3
+                                          ? userNames.join(', ')
+                                          : `${userNames.slice(0, 3).join(', ')} and ${userNames.length - 3} more`;
+                                        
+                                        return (
+                                          <Tooltip key={reaction.emoji} delayDuration={200}>
+                                            <TooltipTrigger asChild>
+                                              <button
+                                                onClick={() => handleReaction(message.id, reaction.emoji)}
+                                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
+                                                  reaction.hasReacted
+                                                    ? 'bg-primary/20 border border-primary/40 hover:bg-primary/30'
+                                                    : 'bg-muted hover:bg-muted/80 border border-transparent'
+                                                }`}
+                                              >
+                                                <span className="text-sm">{reaction.emoji}</span>
+                                                <span className="font-medium">{reaction.count}</span>
+                                              </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top" className="max-w-xs">
+                                              <p className="text-sm">{tooltipText}</p>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        );
+                                      })}
+                                    </TooltipProvider>
+                                  </div>
+                                )}
+                                
                                 <span className="text-xs text-muted-foreground mt-1">
                                   {formatMessageTime(message.created_at)}
                                   {message.updated_at !== message.created_at && !isDeleted && ' (edited)'}
@@ -620,7 +730,7 @@ export default function Messages() {
                   </ScrollArea>
 
                   {/* Message Input */}
-                  <div className="border-t p-4">
+                  <div className="border-t p-4 flex-shrink-0">
                     {/* Typing Indicator */}
                     {otherUserTyping && (
                       <div className="text-xs text-muted-foreground mb-2 flex items-center gap-1">

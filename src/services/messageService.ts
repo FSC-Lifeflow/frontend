@@ -18,6 +18,18 @@ export interface ChatParticipant {
   last_read_at?: string;
 }
 
+export interface MessageReaction {
+  emoji: string;
+  count: number;
+  users: string[]; // User IDs who reacted
+  userDetails?: Array<{ // Optional user details for tooltip
+    id: string;
+    name: string;
+    avatar_url?: string;
+  }>;
+  hasReacted: boolean; // Whether current user has reacted
+}
+
 export interface Message {
   id: string;
   chat_room_id: string;
@@ -26,6 +38,7 @@ export interface Message {
   created_at: string;
   updated_at: string;
   is_deleted: boolean;
+  reactions?: MessageReaction[]; // Reactions grouped by emoji
   sender?: {
     id: string;
     username: string;
@@ -135,10 +148,13 @@ class MessageService {
   }
 
   /**
-   * Get messages for a chat room
+   * Get messages for a chat room with reactions
    */
   async getMessages(chatRoomId: string, limit: number = 50): Promise<Message[]> {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
       const { data, error } = await supabase
         .from('messages')
         .select(`
@@ -157,7 +173,17 @@ class MessageService {
         .limit(limit);
 
       if (error) throw error;
-      return data || [];
+      
+      // Fetch reactions for all messages
+      const messages = data || [];
+      const messagesWithReactions = await Promise.all(
+        messages.map(async (message) => {
+          const reactions = await this.getMessageReactions(message.id, user.id);
+          return { ...message, reactions };
+        })
+      );
+
+      return messagesWithReactions;
     } catch (error) {
       console.error('Error fetching messages:', error);
       throw error;
@@ -225,8 +251,10 @@ class MessageService {
    */
   subscribeToMessages(
     chatRoomId: string,
-    callback: (message: Message) => void
+    callback: (message: Message, event: 'INSERT' | 'UPDATE' | 'DELETE') => void
   ) {
+    console.log('🔔 Subscribing to messages for chat room:', chatRoomId);
+    
     const subscription = supabase
       .channel(`messages:${chatRoomId}`)
       .on(
@@ -238,6 +266,8 @@ class MessageService {
           filter: `chat_room_id=eq.${chatRoomId}`
         },
         async (payload) => {
+          console.log('📨 New message received (INSERT):', payload);
+          
           // Fetch the complete message with sender info
           const { data } = await supabase
             .from('messages')
@@ -255,11 +285,70 @@ class MessageService {
             .single();
 
           if (data) {
-            callback(data);
+            console.log('✅ Message data fetched:', data);
+            callback(data, 'INSERT');
           }
         }
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `chat_room_id=eq.${chatRoomId}`
+        },
+        async (payload) => {
+          console.log('✏️ Message updated (UPDATE):', payload);
+          
+          // Fetch the complete updated message with sender info
+          const { data } = await supabase
+            .from('messages')
+            .select(`
+              *,
+              sender:users(
+                id,
+                username,
+                first_name,
+                last_name,
+                avatar_url
+              )
+            `)
+            .eq('id', payload.new.id)
+            .single();
+
+          if (data) {
+            callback(data, 'UPDATE');
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'messages',
+          filter: `chat_room_id=eq.${chatRoomId}`
+        },
+        (payload) => {
+          console.log('🗑️ Message deleted (DELETE):', payload);
+          // For DELETE, we only have the old data
+          callback(payload.old as Message, 'DELETE');
+        }
+      )
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Successfully subscribed to messages channel');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Channel error:', err);
+        } else if (status === 'TIMED_OUT') {
+          console.error('⏱️ Subscription timed out');
+        } else if (status === 'CLOSED') {
+          console.log('🔒 Channel closed');
+        } else {
+          console.log('📡 Subscription status:', status);
+        }
+      });
 
     return subscription;
   }
@@ -333,32 +422,155 @@ class MessageService {
   }
 
   /**
-   * Add a reaction to a message
-   * Note: This is a placeholder. You'll need to create a message_reactions table
-   * in your database to fully implement this feature.
+   * Get reactions for a message
+   */
+  async getMessageReactions(messageId: string, currentUserId: string): Promise<MessageReaction[]> {
+    try {
+      const { data, error } = await supabase
+        .from('message_reactions')
+        .select(`
+          emoji,
+          user_id,
+          users:user_id (
+            id,
+            username,
+            first_name,
+            last_name
+          )
+        `)
+        .eq('message_id', messageId);
+
+      if (error) throw error;
+
+      // Group reactions by emoji
+      const reactionMap = new Map<string, MessageReaction>();
+      
+      (data || []).forEach((reaction: any) => {
+        const emoji = reaction.emoji;
+        const userId = reaction.user_id;
+        const userName = reaction.users?.first_name
+          ? `${reaction.users.first_name} ${reaction.users.last_name || ''}`.trim()
+          : reaction.users?.username || 'Someone';
+
+        if (!reactionMap.has(emoji)) {
+          reactionMap.set(emoji, {
+            emoji,
+            count: 0,
+            users: [],
+            userDetails: [],
+            hasReacted: false
+          });
+        }
+
+        const reactionData = reactionMap.get(emoji)!;
+        reactionData.count++;
+        reactionData.users.push(userId);
+        reactionData.userDetails!.push({
+          id: userId,
+          name: userName,
+          avatar_url: reaction.users?.avatar_url
+        });
+        
+        if (userId === currentUserId) {
+          reactionData.hasReacted = true;
+        }
+      });
+
+      return Array.from(reactionMap.values());
+    } catch (error) {
+      console.error('Error fetching reactions:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Add or remove a reaction to a message (toggle)
    */
   async addReaction(messageId: string, emoji: string): Promise<void> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // This would require a message_reactions table in the database
-      // For now, this is a placeholder that logs the reaction
-      console.log(`User ${user.id} reacted with ${emoji} to message ${messageId}`);
-      
-      // Uncomment when message_reactions table is created:
-      // const { error } = await supabase
-      //   .from('message_reactions')
-      //   .insert({
-      //     message_id: messageId,
-      //     user_id: user.id,
-      //     emoji
-      //   });
-      // if (error) throw error;
+      // Check if user already reacted with this emoji
+      const { data: existing } = await supabase
+        .from('message_reactions')
+        .select('id')
+        .eq('message_id', messageId)
+        .eq('user_id', user.id)
+        .eq('emoji', emoji)
+        .single();
+
+      if (existing) {
+        // Remove reaction if it exists (toggle off)
+        const { error } = await supabase
+          .from('message_reactions')
+          .delete()
+          .eq('message_id', messageId)
+          .eq('user_id', user.id)
+          .eq('emoji', emoji);
+
+        if (error) throw error;
+      } else {
+        // Add reaction if it doesn't exist
+        const { error } = await supabase
+          .from('message_reactions')
+          .insert({
+            message_id: messageId,
+            user_id: user.id,
+            emoji
+          });
+
+        if (error) throw error;
+      }
     } catch (error) {
-      console.error('Error adding reaction:', error);
+      console.error('Error toggling reaction:', error);
       throw error;
     }
+  }
+
+  /**
+   * Subscribe to reaction changes for a chat room
+   */
+  subscribeToReactions(
+    chatRoomId: string,
+    callback: (messageId: string, reactions: MessageReaction[]) => void
+  ) {
+    console.log('🔔 Subscribing to reactions for chat room:', chatRoomId);
+    
+    const subscription = supabase
+      .channel(`reactions:${chatRoomId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'message_reactions',
+          filter: `message_id=in.(SELECT id FROM messages WHERE chat_room_id='${chatRoomId}')`
+        },
+        async (payload: any) => {
+          console.log('⚡ Reaction change detected:', payload);
+          
+          // Get the message_id from the payload
+          const messageId = payload.new?.message_id || payload.old?.message_id;
+          if (!messageId) return;
+
+          // Fetch updated reactions for this message
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
+
+          const reactions = await this.getMessageReactions(messageId, user.id);
+          callback(messageId, reactions);
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Successfully subscribed to reactions channel');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Reactions channel error');
+        }
+      });
+
+    return subscription;
   }
 
   /**
