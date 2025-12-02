@@ -29,6 +29,13 @@ const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
 
+// Log environment check
+console.log('Environment check:');
+console.log('- SUPABASE_URL:', SUPABASE_URL ? '✓' : '✗');
+console.log('- SUPABASE_SERVICE_ROLE_KEY:', SUPABASE_SERVICE_ROLE_KEY ? '✓' : '✗');
+console.log('- GOOGLE_CLIENT_ID:', GOOGLE_CLIENT_ID ? '✓' : '✗');
+console.log('- GOOGLE_CLIENT_SECRET:', GOOGLE_CLIENT_SECRET ? '✓' : '✗');
+
 // Initialize services - Use service role key for backend (bypasses RLS)
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 const tokenService = new TokenService(supabase, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, FITBIT_CLIENT_ID, FITBIT_CLIENT_SECRET);
