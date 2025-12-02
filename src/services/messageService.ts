@@ -58,7 +58,13 @@ class MessageService {
       const { data, error } = await supabase
         .rpc('get_user_chat_rooms', { user_uuid: user.id });
 
-      if (error) throw error;
+      if (error) {
+        // Check if the function doesn't exist
+        if (error.message?.includes('function') && error.message?.includes('does not exist')) {
+          throw new Error('Database function "get_user_chat_rooms" does not exist. Please run the messaging database migration.');
+        }
+        throw error;
+      }
       return data || [];
     } catch (error) {
       console.error('Error fetching chat rooms:', error);
@@ -137,7 +143,7 @@ class MessageService {
         .from('messages')
         .select(`
           *,
-          sender:users!messages_sender_id_fkey (
+          sender:users(
             id,
             username,
             first_name,
@@ -175,7 +181,7 @@ class MessageService {
         })
         .select(`
           *,
-          sender:users!messages_sender_id_fkey (
+          sender:users(
             id,
             username,
             first_name,
@@ -237,7 +243,7 @@ class MessageService {
             .from('messages')
             .select(`
               *,
-              sender:users!messages_sender_id_fkey (
+              sender:users(
                 id,
                 username,
                 first_name,
@@ -291,7 +297,7 @@ class MessageService {
         .eq('id', messageId)
         .select(`
           *,
-          sender:users!messages_sender_id_fkey (
+          sender:users(
             id,
             username,
             first_name,
@@ -322,6 +328,35 @@ class MessageService {
       if (error) throw error;
     } catch (error) {
       console.error('Error deleting message:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add a reaction to a message
+   * Note: This is a placeholder. You'll need to create a message_reactions table
+   * in your database to fully implement this feature.
+   */
+  async addReaction(messageId: string, emoji: string): Promise<void> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      // This would require a message_reactions table in the database
+      // For now, this is a placeholder that logs the reaction
+      console.log(`User ${user.id} reacted with ${emoji} to message ${messageId}`);
+      
+      // Uncomment when message_reactions table is created:
+      // const { error } = await supabase
+      //   .from('message_reactions')
+      //   .insert({
+      //     message_id: messageId,
+      //     user_id: user.id,
+      //     emoji
+      //   });
+      // if (error) throw error;
+    } catch (error) {
+      console.error('Error adding reaction:', error);
       throw error;
     }
   }

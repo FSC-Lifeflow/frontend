@@ -5,6 +5,7 @@ import { WellnessCard } from "@/components/WellnessCard";
 import FriendProfile from "@/components/FriendProfile";
 import { MentionText } from "@/components/MentionText";
 import { MentionTextarea } from "@/components/MentionTextarea";
+import { MessageButton } from "@/components/MessageButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -1428,13 +1429,23 @@ export default function Social() {
                               {user.username ? `@${user.username}` : user.email}
                             </p>
                           </div>
-                          <Button 
-                            variant="zen" 
-                            size="sm"
-                            onClick={() => handleAddFriendFromSearch(user)}
-                          >
-                            <UserPlus className="w-3 h-3" />
-                          </Button>
+                          <div className="flex gap-1">
+                            <MessageButton
+                              userId={user.id}
+                              userName={`${user.first_name} ${user.last_name}`}
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                            />
+                            <Button 
+                              variant="zen" 
+                              size="sm"
+                              onClick={() => handleAddFriendFromSearch(user)}
+                              className="h-8 w-8 p-0"
+                            >
+                              <UserPlus className="w-3 h-3" />
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
