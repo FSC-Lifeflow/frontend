@@ -10,7 +10,10 @@ import { setupFitbitRoutes } from './routes/fitbit.js';
 import { setupGoogleRoutes } from './routes/google.js';
 import { setupFitbitDataRoutes } from './routes/fitbitData.js';
 
-dotenv.config({ path: '.env.server' });
+// Only load .env.server in development (Railway provides env vars directly)
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config({ path: '.env.server' });
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
