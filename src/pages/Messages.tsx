@@ -20,7 +20,8 @@ import {
 } from "@/services/messageService";
 import { friendService } from "@/services/friendService";
 import { type SearchUser } from "@/services/userService";
-import { MessageSquare, Users, Search, Plus, Send, Loader2, Check, MoreVertical, Edit2, Trash2, Smile, Image as ImageIcon, Paperclip } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { MessageSquare, Users, Search, Plus, Send, Loader2, Check, MoreVertical, Edit2, Trash2, Smile, Image as ImageIcon, Paperclip, X, Pencil } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 export default function Messages() {
@@ -37,7 +38,14 @@ export default function Messages() {
   const [friends, setFriends] = useState<SearchUser[]>([]);
   const [isLoadingFriends, setIsLoadingFriends] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<SearchUser | null>(null);
+  const [selectedMembers, setSelectedMembers] = useState<SearchUser[]>([]);
   const [isCreatingChat, setIsCreatingChat] = useState(false);
+  const [isGroupChat, setIsGroupChat] = useState(false);
+  const [groupName, setGroupName] = useState("");
+  const [showEditRoomModal, setShowEditRoomModal] = useState(false);
+  const [editingRoomName, setEditingRoomName] = useState("");
+  const [isUpdatingRoom, setIsUpdatingRoom] = useState(false);
+  const [participants, setParticipants] = useState<SearchUser[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [otherUserTyping, setOtherUserTyping] = useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -86,6 +94,7 @@ export default function Messages() {
   useEffect(() => {
     if (selectedRoom) {
       loadMessages(selectedRoom.chat_room_id);
+      loadParticipants(selectedRoom.participant_ids);
       markAsRead(selectedRoom.chat_room_id);
 
       // Subscribe to new messages and updates
@@ -161,6 +170,20 @@ export default function Messages() {
       }, 0);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadParticipants = async (participantIds: string[]) => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, username, first_name, last_name, avatar_url')
+        .in('id', participantIds);
+
+      if (error) throw error;
+      setParticipants(data || []);
+    } catch (error) {
+      console.error('Error loading participants:', error);
     }
   };
 
@@ -365,38 +388,137 @@ export default function Messages() {
   };
 
   const handleStartNewChat = async () => {
-    if (!selectedFriend) return;
+    if (isGroupChat) {
+      // Handle group chat creation
+      if (selectedMembers.length < 2) {
+        setTimeout(() => {
+          toast.error('Please select at least 2 members for a group chat');
+        }, 0);
+        return;
+      }
+      if (!groupName.trim()) {
+        setTimeout(() => {
+          toast.error('Please enter a group name');
+        }, 0);
+        return;
+      }
+
+      try {
+        setIsCreatingChat(true);
+        
+        const memberIds = selectedMembers.map(m => m.id);
+        const chatRoom = await messageService.createGroupChat(groupName.trim(), memberIds);
+        
+        // Reload chat rooms
+        const rooms = await messageService.getUserChatRooms();
+        setChatRooms(rooms);
+        
+        // Find and select the chat room
+        const room = rooms.find(r => r.chat_room_id === chatRoom.id);
+        if (room) {
+          setSelectedRoom(room);
+        }
+        
+        // Close modal and reset
+        setShowNewChatModal(false);
+        setSelectedMembers([]);
+        setGroupName('');
+        setIsGroupChat(false);
+        
+        setTimeout(() => {
+          toast.success(`Group chat "${groupName}" created`);
+        }, 0);
+      } catch (error) {
+        console.error('Error creating group chat:', error);
+        setTimeout(() => {
+          toast.error('Failed to create group chat. Please try again.');
+        }, 0);
+      } finally {
+        setIsCreatingChat(false);
+      }
+    } else {
+      // Handle direct chat creation
+      if (!selectedFriend) return;
+
+      try {
+        setIsCreatingChat(true);
+        
+        const chatRoomId = await messageService.getOrCreateDirectChat(selectedFriend.id);
+        
+        // Reload chat rooms
+        const rooms = await messageService.getUserChatRooms();
+        setChatRooms(rooms);
+        
+        // Find and select the chat room
+        const room = rooms.find(r => r.chat_room_id === chatRoomId);
+        if (room) {
+          setSelectedRoom(room);
+        }
+        
+        // Close modal and reset
+        setShowNewChatModal(false);
+        setSelectedFriend(null);
+        
+        setTimeout(() => {
+          toast.success(`Chat with ${selectedFriend.first_name || selectedFriend.username} opened`);
+        }, 0);
+      } catch (error) {
+        console.error('Error starting chat:', error);
+        setTimeout(() => {
+          toast.error('Failed to start chat. Please try again.');
+        }, 0);
+      } finally {
+        setIsCreatingChat(false);
+      }
+    }
+  };
+
+  const toggleMemberSelection = (friend: SearchUser) => {
+    setSelectedMembers(prev => {
+      const isSelected = prev.some(m => m.id === friend.id);
+      if (isSelected) {
+        return prev.filter(m => m.id !== friend.id);
+      } else {
+        return [...prev, friend];
+      }
+    });
+  };
+
+  const handleEditRoomName = () => {
+    if (selectedRoom) {
+      setEditingRoomName(selectedRoom.chat_name);
+      setShowEditRoomModal(true);
+    }
+  };
+
+  const handleUpdateRoomName = async () => {
+    if (!selectedRoom || !editingRoomName.trim()) return;
 
     try {
-      setIsCreatingChat(true);
+      setIsUpdatingRoom(true);
+      await messageService.updateChatRoomName(selectedRoom.chat_room_id, editingRoomName.trim());
       
-      // Get or create direct chat with the selected friend
-      const chatRoomId = await messageService.getOrCreateDirectChat(selectedFriend.id);
+      // Update local state
+      setSelectedRoom({ ...selectedRoom, chat_name: editingRoomName.trim() });
+      setChatRooms(prev => 
+        prev.map(room => 
+          room.chat_room_id === selectedRoom.chat_room_id 
+            ? { ...room, chat_name: editingRoomName.trim() }
+            : room
+        )
+      );
       
-      // Reload chat rooms to include the new/existing chat
-      const rooms = await messageService.getUserChatRooms();
-      setChatRooms(rooms);
-      
-      // Find and select the chat room
-      const room = rooms.find(r => r.chat_room_id === chatRoomId);
-      if (room) {
-        setSelectedRoom(room);
-      }
-      
-      // Close modal and reset
-      setShowNewChatModal(false);
-      setSelectedFriend(null);
-      
+      setShowEditRoomModal(false);
       setTimeout(() => {
-        toast.success(`Chat with ${selectedFriend.first_name || selectedFriend.username} opened`);
+        toast.success('Chat name updated');
       }, 0);
     } catch (error) {
-      console.error('Error starting chat:', error);
+      console.error('Error updating room name:', error);
       setTimeout(() => {
-        toast.error('Failed to start chat. Please try again.');
+        toast.error('Failed to update chat name');
       }, 0);
     } finally {
-      setIsCreatingChat(false);
+      setIsUpdatingRoom(false);
     }
   };
 
@@ -543,25 +665,77 @@ export default function Messages() {
                 <div className="flex flex-col h-full">
                   {/* Chat Header */}
                   <div className="border-b p-4 flex-shrink-0">
-                    <div className="flex items-center gap-3">
-                      <Avatar>
-                        <AvatarImage src={selectedRoom.avatar_url} />
-                        <AvatarFallback>
-                          {selectedRoom.chat_type === 'group' ? (
-                            <Users className="w-4 h-4" />
-                          ) : (
-                            selectedRoom.chat_name.substring(0, 2).toUpperCase()
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {/* Avatar with Participants Dropdown */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="cursor-pointer hover:opacity-80 transition-opacity">
+                              <Avatar>
+                                <AvatarImage src={selectedRoom.avatar_url} />
+                                <AvatarFallback>
+                                  {selectedRoom.chat_type === 'group' ? (
+                                    <Users className="w-4 h-4" />
+                                  ) : (
+                                    selectedRoom.chat_name.substring(0, 2).toUpperCase()
+                                  )}
+                                </AvatarFallback>
+                              </Avatar>
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="w-64">
+                            <div className="px-2 py-1.5 text-sm font-semibold">
+                              {selectedRoom.chat_type === 'group' ? 'Group Members' : 'Participants'} ({participants.length})
+                            </div>
+                            <div className="max-h-[300px] overflow-y-auto">
+                              {participants.map((participant) => (
+                                <DropdownMenuItem key={participant.id} className="cursor-default focus:bg-accent">
+                                  <div className="flex items-center gap-3 w-full">
+                                    <Avatar className="w-8 h-8">
+                                      <AvatarImage src={participant.avatar_url} />
+                                      <AvatarFallback className="text-xs">
+                                        {participant.first_name?.[0] || participant.username?.[0] || 'U'}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-medium text-sm truncate">
+                                        {participant.first_name && participant.last_name
+                                          ? `${participant.first_name} ${participant.last_name}`
+                                          : participant.username}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground truncate">
+                                        @{participant.username}
+                                      </p>
+                                    </div>
+                                    {participant.id === user?.id && (
+                                      <Badge variant="secondary" className="text-xs">You</Badge>
+                                    )}
+                                  </div>
+                                </DropdownMenuItem>
+                              ))}
+                            </div>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        
+                        <div>
+                          <h3 className="font-semibold">{selectedRoom.chat_name}</h3>
+                          {selectedRoom.chat_type === 'group' && (
+                            <p className="text-sm text-muted-foreground">
+                              {selectedRoom.participant_ids.length} members
+                            </p>
                           )}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <h3 className="font-semibold">{selectedRoom.chat_name}</h3>
-                        {selectedRoom.chat_type === 'group' && (
-                          <p className="text-sm text-muted-foreground">
-                            {selectedRoom.participant_ids.length} members
-                          </p>
-                        )}
+                        </div>
                       </div>
+                      
+                      {/* Edit Chat Name Button */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleEditRoomName}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
 
@@ -652,27 +826,34 @@ export default function Messages() {
                                       
                                       {/* Edit/Delete for own messages */}
                                       {isOwnMessage && (
-                                        <DropdownMenu>
+                                        <DropdownMenu modal={false}>
                                           <DropdownMenuTrigger asChild>
                                             <Button
                                               variant="ghost"
                                               size="sm"
-                                              className="h-7 w-7 p-0"
+                                              className="h-7 w-7 p-0 hover:bg-accent"
                                             >
                                               <MoreVertical className="w-4 h-4" />
                                             </Button>
                                           </DropdownMenuTrigger>
-                                          <DropdownMenuContent align={isOwnMessage ? "end" : "start"}>
-                                            <DropdownMenuItem onClick={() => handleEditMessage(message)}>
+                                          <DropdownMenuContent 
+                                            align={isOwnMessage ? "end" : "start"}
+                                            className="w-48"
+                                            sideOffset={5}
+                                          >
+                                            <DropdownMenuItem 
+                                              onClick={() => handleEditMessage(message)}
+                                              className="cursor-pointer"
+                                            >
                                               <Edit2 className="w-4 h-4 mr-2" />
-                                              Edit
+                                              Edit Message
                                             </DropdownMenuItem>
                                             <DropdownMenuItem 
                                               onClick={() => handleDeleteMessage(message.id)}
-                                              className="text-destructive"
+                                              className="text-destructive cursor-pointer focus:text-destructive"
                                             >
                                               <Trash2 className="w-4 h-4 mr-2" />
-                                              Delete
+                                              Delete Message
                                             </DropdownMenuItem>
                                           </DropdownMenuContent>
                                         </DropdownMenu>
@@ -803,16 +984,66 @@ export default function Messages() {
         </div>
 
         {/* New Chat Modal */}
-        <Dialog open={showNewChatModal} onOpenChange={setShowNewChatModal}>
+        <Dialog open={showNewChatModal} onOpenChange={(open) => {
+          setShowNewChatModal(open);
+          if (!open) {
+            // Reset state when closing
+            setIsGroupChat(false);
+            setSelectedFriend(null);
+            setSelectedMembers([]);
+            setGroupName('');
+          }
+        }}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>Start a New Chat</DialogTitle>
               <DialogDescription>
-                Select a friend to start a conversation with
+                {isGroupChat ? 'Create a group chat with multiple friends' : 'Select a friend to start a conversation with'}
               </DialogDescription>
             </DialogHeader>
             
             <div className="flex flex-col max-h-[70vh]">
+              {/* Chat Type Toggle */}
+              <div className="flex gap-2 mb-4">
+                <Button
+                  variant={!isGroupChat ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setIsGroupChat(false);
+                    setSelectedMembers([]);
+                    setGroupName('');
+                  }}
+                  className="flex-1"
+                >
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Direct Chat
+                </Button>
+                <Button
+                  variant={isGroupChat ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setIsGroupChat(true);
+                    setSelectedFriend(null);
+                  }}
+                  className="flex-1"
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  Group Chat
+                </Button>
+              </div>
+
+              {/* Group Name Input (only for group chats) */}
+              {isGroupChat && (
+                <div className="mb-4">
+                  <Input
+                    placeholder="Enter group name..."
+                    value={groupName}
+                    onChange={(e) => setGroupName(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+              )}
+
               {isLoadingFriends ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -833,61 +1064,52 @@ export default function Messages() {
                       <CommandList>
                         <CommandEmpty>No friends found.</CommandEmpty>
                         <CommandGroup>
-                          <ScrollArea className="h-[200px]">
-                            {friends.map((friend) => (
-                              <CommandItem
-                                key={friend.id}
-                                onSelect={() => setSelectedFriend(friend)}
-                                className="cursor-pointer"
-                              >
-                                <div className="flex items-center gap-3 w-full">
-                                  <Avatar className="w-10 h-10">
-                                    <AvatarImage src={friend.avatar_url} />
-                                    <AvatarFallback>
-                                      {friend.first_name?.[0] || friend.username?.[0] || 'U'}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <div className="flex-1">
-                                    <p className="font-semibold">
-                                      {friend.first_name && friend.last_name
-                                        ? `${friend.first_name} ${friend.last_name}`
-                                        : friend.username}
-                                    </p>
-                                    <p className="text-sm text-muted-foreground">
-                                      @{friend.username}
-                                    </p>
+                          <ScrollArea className="h-[300px]">
+                            {friends.map((friend) => {
+                              const isSelected = isGroupChat 
+                                ? selectedMembers.some(m => m.id === friend.id)
+                                : selectedFriend?.id === friend.id;
+                              
+                              return (
+                                <CommandItem
+                                  key={friend.id}
+                                  onSelect={() => {
+                                    if (isGroupChat) {
+                                      toggleMemberSelection(friend);
+                                    } else {
+                                      setSelectedFriend(friend);
+                                    }
+                                  }}
+                                  className={`cursor-pointer ${isSelected ? 'bg-primary/10' : ''}`}
+                                >
+                                  <div className="flex items-center gap-3 w-full">
+                                    <Avatar className="w-10 h-10">
+                                      <AvatarImage src={friend.avatar_url} />
+                                      <AvatarFallback>
+                                        {friend.first_name?.[0] || friend.username?.[0] || 'U'}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-1">
+                                      <p className="font-semibold">
+                                        {friend.first_name && friend.last_name
+                                          ? `${friend.first_name} ${friend.last_name}`
+                                          : friend.username}
+                                      </p>
+                                      <p className="text-sm text-muted-foreground">
+                                        @{friend.username}
+                                      </p>
+                                    </div>
+                                    {isSelected && (
+                                      <Check className="w-5 h-5 text-primary" />
+                                    )}
                                   </div>
-                                  {selectedFriend?.id === friend.id && (
-                                    <Check className="w-5 h-5 text-primary" />
-                                  )}
-                                </div>
-                              </CommandItem>
-                            ))}
+                                </CommandItem>
+                              );
+                            })}
                           </ScrollArea>
                         </CommandGroup>
                       </CommandList>
                     </Command>
-
-                    {selectedFriend && (
-                      <div className="flex items-center gap-3 p-3 bg-primary/5 rounded-lg border">
-                        <Avatar className="w-10 h-10">
-                          <AvatarImage src={selectedFriend.avatar_url} />
-                          <AvatarFallback>
-                            {selectedFriend.first_name?.[0] || selectedFriend.username?.[0] || 'U'}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <p className="font-semibold">
-                            {selectedFriend.first_name && selectedFriend.last_name
-                              ? `${selectedFriend.first_name} ${selectedFriend.last_name}`
-                              : selectedFriend.username}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Selected
-                          </p>
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   <div className="flex gap-2 pt-4 border-t">
@@ -897,6 +1119,9 @@ export default function Messages() {
                       onClick={() => {
                         setShowNewChatModal(false);
                         setSelectedFriend(null);
+                        setSelectedMembers([]);
+                        setGroupName('');
+                        setIsGroupChat(false);
                       }}
                       disabled={isCreatingChat}
                     >
@@ -906,12 +1131,20 @@ export default function Messages() {
                       variant="wellness"
                       className="flex-1"
                       onClick={handleStartNewChat}
-                      disabled={!selectedFriend || isCreatingChat}
+                      disabled={
+                        isCreatingChat ||
+                        (isGroupChat ? (selectedMembers.length < 2 || !groupName.trim()) : !selectedFriend)
+                      }
                     >
                       {isCreatingChat ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Starting...
+                          Creating...
+                        </>
+                      ) : isGroupChat ? (
+                        <>
+                          <Users className="w-4 h-4 mr-2" />
+                          Create Group {selectedMembers.length > 0 && `(${selectedMembers.length})`}
                         </>
                       ) : (
                         <>
@@ -923,6 +1156,66 @@ export default function Messages() {
                   </div>
                 </>
               )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Room Name Modal */}
+        <Dialog open={showEditRoomModal} onOpenChange={setShowEditRoomModal}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Edit Chat Name</DialogTitle>
+              <DialogDescription>
+                Change the name of this chat room
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <label htmlFor="room-name" className="text-sm font-medium">
+                  Chat Name
+                </label>
+                <Input
+                  id="room-name"
+                  value={editingRoomName}
+                  onChange={(e) => setEditingRoomName(e.target.value)}
+                  placeholder="Enter chat name..."
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && editingRoomName.trim()) {
+                      handleUpdateRoomName();
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowEditRoomModal(false)}
+                disabled={isUpdatingRoom}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="wellness"
+                className="flex-1"
+                onClick={handleUpdateRoomName}
+                disabled={!editingRoomName.trim() || isUpdatingRoom}
+              >
+                {isUpdatingRoom ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4 mr-2" />
+                    Save
+                  </>
+                )}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>

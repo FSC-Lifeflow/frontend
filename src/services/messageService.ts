@@ -574,6 +574,23 @@ class MessageService {
   }
 
   /**
+   * Update chat room name
+   */
+  async updateChatRoomName(chatRoomId: string, newName: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('chat_rooms')
+        .update({ name: newName })
+        .eq('id', chatRoomId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error updating chat room name:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Add participant to group chat
    */
   async addParticipant(chatRoomId: string, userId: string): Promise<void> {
