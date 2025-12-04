@@ -86,11 +86,42 @@ export function setupGoogleRoutes(app, supabase, tokenService, GOOGLE_CLIENT_ID,
         .eq('email', googleUser.email);
 
       let userId;
+      let accessToken, refreshToken;
       
       if (existingUsers && existingUsers.length > 0) {
-        // User exists
+        // User exists - generate login link
         userId = existingUsers[0].id;
         console.log('Existing user found:', userId);
+        
+        // Generate magic link to get tokens
+        const { data: tokenData, error: tokenError } = await supabase.auth.admin.generateLink({
+          type: 'magiclink',
+          email: googleUser.email,
+        });
+
+        if (tokenError || !tokenData) {
+          console.error('Failed to generate tokens for existing user:', tokenError);
+          return res.status(500).send('Failed to create session');
+        }
+
+        // Extract tokens from the hashed_token in the URL
+        const url = new URL(tokenData.properties.action_link);
+        const token = url.searchParams.get('token');
+        const tokenHash = url.searchParams.get('token_hash');
+        
+        // For existing users, we need to use the admin API to create a session
+        const { data: sessionData, error: sessionError } = await supabase.auth.admin.createSession({
+          user_id: userId,
+        });
+
+        if (sessionError || !sessionData) {
+          console.error('Failed to create session for existing user:', sessionError);
+          return res.status(500).send('Failed to create session');
+        }
+
+        accessToken = sessionData.access_token;
+        refreshToken = sessionData.refresh_token;
+        
       } else {
         // Create new user in Supabase Auth
         const { data: authData, error: authError } = await supabase.auth.admin.createUser({
@@ -127,40 +158,19 @@ export function setupGoogleRoutes(app, supabase, tokenService, GOOGLE_CLIENT_ID,
         }
 
         console.log('New user created:', userId);
-      }
-
-      // Create a session for this user using admin API
-      const { data: sessionData, error: sessionError } = await supabase.auth.admin.createUser({
-        email: googleUser.email,
-        email_confirm: true,
-        user_metadata: {
-          first_name: googleUser.given_name || '',
-          last_name: googleUser.family_name || '',
-          avatar_url: googleUser.picture,
-        },
-      });
-
-      // If user already exists, sign them in instead
-      let accessToken, refreshToken;
-      
-      if (sessionError && sessionError.message.includes('already registered')) {
-        // User exists, generate tokens using admin
-        const { data: tokenData, error: tokenError } = await supabase.auth.admin.generateLink({
-          type: 'magiclink',
-          email: googleUser.email,
+        
+        // Create session for new user
+        const { data: sessionData, error: sessionError } = await supabase.auth.admin.createSession({
+          user_id: userId,
         });
 
-        if (tokenError || !tokenData) {
-          console.error('Failed to generate tokens:', tokenError);
+        if (sessionError || !sessionData) {
+          console.error('Failed to create session for new user:', sessionError);
           return res.status(500).send('Failed to create session');
         }
 
-        // Extract tokens from the magic link properties
-        accessToken = tokenData.properties?.access_token;
-        refreshToken = tokenData.properties?.refresh_token;
-      } else if (sessionData?.session) {
-        accessToken = sessionData.session.access_token;
-        refreshToken = sessionData.session.refresh_token;
+        accessToken = sessionData.access_token;
+        refreshToken = sessionData.refresh_token;
       }
 
       if (!accessToken || !refreshToken) {
