@@ -5,6 +5,7 @@ import { WellnessCard } from "@/components/WellnessCard";
 import FriendProfile from "@/components/FriendProfile";
 import { MentionText } from "@/components/MentionText";
 import { MentionTextarea } from "@/components/MentionTextarea";
+import { MessageButton } from "@/components/MessageButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -434,6 +435,10 @@ export default function Social() {
             : p;
         setPosts(prev => prev.map(updatePost));
         setMyPosts(prev => prev.map(updatePost));
+        // Also update singlePost if it's the same post
+        if (singlePost?.id === post.id) {
+          setSinglePost(prev => prev ? { ...prev, is_liked_by_user: false, likes_count: (prev.likes_count || 1) - 1 } : null);
+        }
       } else {
         await postInteractionService.likePost(post.id);
         // Update post in state
@@ -443,6 +448,10 @@ export default function Social() {
             : p;
         setPosts(prev => prev.map(updatePost));
         setMyPosts(prev => prev.map(updatePost));
+        // Also update singlePost if it's the same post
+        if (singlePost?.id === post.id) {
+          setSinglePost(prev => prev ? { ...prev, is_liked_by_user: true, likes_count: (prev.likes_count || 0) + 1 } : null);
+        }
       }
     } catch (error: any) {
       console.error('❌ Error toggling like:', error);
@@ -454,7 +463,6 @@ export default function Social() {
     }
   };
 
-  // Open comments modal
   const handleOpenComments = async (post: UserPost) => {
     setSelectedPost(post);
     setShowCommentsModal(true);
@@ -1428,13 +1436,23 @@ export default function Social() {
                               {user.username ? `@${user.username}` : user.email}
                             </p>
                           </div>
-                          <Button 
-                            variant="zen" 
-                            size="sm"
-                            onClick={() => handleAddFriendFromSearch(user)}
-                          >
-                            <UserPlus className="w-3 h-3" />
-                          </Button>
+                          <div className="flex gap-1">
+                            <MessageButton
+                              userId={user.id}
+                              userName={`${user.first_name} ${user.last_name}`}
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                            />
+                            <Button 
+                              variant="zen" 
+                              size="sm"
+                              onClick={() => handleAddFriendFromSearch(user)}
+                              className="h-8 w-8 p-0"
+                            >
+                              <UserPlus className="w-3 h-3" />
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1465,15 +1483,6 @@ export default function Social() {
                 >
                   <Calendar className="w-4 h-4 mr-2" />
                   Invite to Scheduled Workout
-                </Button>
-                <Button 
-                  variant="zen" 
-                  size="sm" 
-                  className="w-full"
-                  onClick={() => setShowInviteModal(true)}
-                >
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Invite to Co-Workout
                 </Button>
                 <Button 
                   variant="motivation" 
@@ -1559,7 +1568,7 @@ export default function Social() {
                       )}
                       {isRequestingMotivation ? "Sending..." : "Ask Friends for Motivation"}
                     </Button>
-                    <Button 
+                    {/* <Button 
                       variant="outline" 
                       size="sm" 
                       className="w-full"
@@ -1572,7 +1581,7 @@ export default function Social() {
                     >
                       <Sparkles className="w-4 h-4 mr-2" />
                       Get AI Motivation
-                    </Button>
+                    </Button> */}
                   </div>
                 </div>
 

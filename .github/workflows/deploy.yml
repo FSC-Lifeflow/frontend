@@ -2,7 +2,7 @@ name: Deploy to VPS
 
 on:
   push:
-    branches: [ production ]  # or whatever branch you want to deploy from
+    branches: [ production ]
   pull_request:
     branches: [ production ]
 

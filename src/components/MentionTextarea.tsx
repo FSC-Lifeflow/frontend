@@ -12,6 +12,8 @@ interface MentionTextareaProps {
   className?: string;
   disabled?: boolean;
   rows?: number;
+  onKeyDown?: (e: KeyboardEvent<HTMLTextAreaElement>) => void;
+  mentionableUsers?: SearchUser[]; // Optional list of users to mention (defaults to friends)
 }
 
 export function MentionTextarea({
@@ -20,7 +22,9 @@ export function MentionTextarea({
   placeholder,
   className,
   disabled,
-  rows
+  rows,
+  onKeyDown: externalOnKeyDown,
+  mentionableUsers
 }: MentionTextareaProps) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [friends, setFriends] = useState<SearchUser[]>([]);
@@ -32,21 +36,28 @@ export function MentionTextarea({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Load friends on mount
+  // Load friends on mount (only if mentionableUsers not provided)
   useEffect(() => {
-    const loadFriends = async () => {
-      setIsLoadingFriends(true);
-      try {
-        const friendsList = await friendService.getFriends();
-        setFriends(friendsList);
-      } catch (error) {
-        console.error("Failed to load friends:", error);
-      } finally {
-        setIsLoadingFriends(false);
-      }
-    };
-    loadFriends();
-  }, []);
+    if (mentionableUsers) {
+      // Use provided mentionable users
+      setFriends(mentionableUsers);
+      setIsLoadingFriends(false);
+    } else {
+      // Load friends from API
+      const loadFriends = async () => {
+        setIsLoadingFriends(true);
+        try {
+          const friendsList = await friendService.getFriends();
+          setFriends(friendsList);
+        } catch (error) {
+          console.error("Failed to load friends:", error);
+        } finally {
+          setIsLoadingFriends(false);
+        }
+      };
+      loadFriends();
+    }
+  }, [mentionableUsers]);
 
   // Handle text changes and detect @ mentions
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -113,7 +124,13 @@ export function MentionTextarea({
 
   // Handle keyboard navigation
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (!showDropdown) return;
+    if (!showDropdown) {
+      // If dropdown is not showing, let parent handle the key event
+      if (externalOnKeyDown) {
+        externalOnKeyDown(e);
+      }
+      return;
+    }
 
     switch (e.key) {
       case 'ArrowDown':

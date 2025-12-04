@@ -22,7 +22,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { User, Upload, Save, Bell, X, Check, UserX, Loader2, Users, Ban, UserMinus, ChevronDown, ChevronUp, Calendar, Clock, MapPin, FileText } from "lucide-react";
+import { User, Upload, Save, Bell, X, Check, UserX, Loader2, Users, Ban, UserMinus, ChevronDown, ChevronUp, Calendar, Clock, MapPin, FileText, MessageSquare } from "lucide-react";
 // Custom hooks and services
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,6 +30,7 @@ import { useNotifications } from "@/contexts/NotificationContext";
 import { authService } from "@/services/authService";
 import { notificationService, type Notification } from "@/services/notificationService";
 import { friendService, type SearchUser } from "@/services/friendService";
+import { messageService } from "@/services/messageService";
 import { AvatarUploader } from "@/components/AvatarUploader";
 import { WorkoutCompletionDialog } from "@/components/WorkoutCompletionDialog";
 import { supabase } from "@/lib/supabase";
@@ -165,6 +166,55 @@ export default function Profile() {
       fetchFriends();
     }
   }, [activeTab]);
+
+  // Set up real-time subscription for notifications
+  useEffect(() => {
+    if (!user) return;
+
+    let subscriptionPromise: Promise<any> | null = null;
+
+    const setupSubscription = async () => {
+      subscriptionPromise = notificationService.subscribeToNotifications(
+        (notification, event) => {
+          console.log('🔔 Notification event received:', event, notification);
+          
+          if (event === 'INSERT') {
+            // Add new notification to the list
+            setNotifications(prev => {
+              // Avoid duplicates
+              const exists = prev.some(n => n.id === notification.id);
+              if (exists) return prev;
+              return [notification, ...prev]; // Add to beginning
+            });
+          } else if (event === 'UPDATE') {
+            // Update existing notification
+            setNotifications(prev =>
+              prev.map(n => (n.id === notification.id ? notification : n))
+            );
+          } else if (event === 'DELETE') {
+            // Remove deleted notification
+            setNotifications(prev =>
+              prev.filter(n => n.id !== notification.id)
+            );
+          }
+        }
+      );
+
+      const subscription = await subscriptionPromise;
+      return subscription;
+    };
+
+    const subscription = setupSubscription();
+
+    return () => {
+      subscription.then(sub => {
+        if (sub) {
+          console.log('🔌 Unsubscribing from notifications');
+          sub.unsubscribe();
+        }
+      });
+    };
+  }, [user]);
 
   // Fetch notifications when modal opens
   const fetchNotifications = async () => {
@@ -350,6 +400,28 @@ export default function Profile() {
     }
   };
 
+  const handleMessageFriend = async (friendId: string, friendName: string) => {
+    try {
+      // Create or get existing direct chat
+      const chatRoomId = await messageService.getOrCreateDirectChat(friendId);
+      
+      toast({
+        title: "Opening Chat",
+        description: `Starting conversation with ${friendName}`,
+      });
+      
+      // Navigate to messages page
+      navigate('/messages');
+    } catch (error) {
+      console.error('Error creating chat:', error);
+      toast({
+        title: "Error",
+        description: "Failed to start chat. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handlePostNotificationClick = async (notification: Notification) => {
     // Mark notification as read FIRST if not already
     if (!notification.read) {
@@ -369,10 +441,10 @@ export default function Profile() {
     
     // For comment replies, open single post view
     // For likes and comments, open My Posts
-    const isCommentReply = notification.type === 'comment_reply';
+    const shouldShowSinglePost = notification.type === 'comment_reply' || notification.type === 'post_mention';
     
     navigate('/social', { 
-      state: isCommentReply 
+      state: shouldShowSinglePost 
         ? { 
             viewSinglePost: true,
             postId: notification.data?.post_id 
@@ -381,6 +453,31 @@ export default function Profile() {
             openMyPosts: true,
             highlightPostId: notification.data?.post_id 
           } 
+    });
+  };
+
+  const handleMessageMentionClick = async (notification: Notification) => {
+    // Mark notification as read FIRST if not already
+    if (!notification.read) {
+      try {
+        await notificationService.markAsRead(notification.id);
+        setNotifications(prev => prev.map(n => 
+          n.id === notification.id ? { ...n, read: true } : n
+        ));
+        await refreshUnreadCount();
+      } catch (error) {
+        console.error('Failed to mark notification as read:', error);
+      }
+    }
+    
+    // Close the notifications modal
+    setShowNotifications(false);
+    
+    // Navigate to Messages page with the specific chat room
+    navigate('/messages', { 
+      state: { 
+        selectedChatId: notification.data?.chat_room_id 
+      } 
     });
   };
 
@@ -473,6 +570,8 @@ export default function Profile() {
         return "↩️";
       case "post_mention":
         return "📢";
+      case "message_mention":
+        return "💬";
       case "social":
         return "❤️";
       default:
@@ -702,15 +801,17 @@ export default function Profile() {
     }
   };
 
-  // Function to handle unblocking a user
+  // Handle unblocking a user
   const handleUnblockUser = async (userId: string) => {
     try {
       await friendService.unblockUser(userId);
-      // Refresh the blocked users list
-      await loadBlockedUsers();
+      
+      // Remove from blocked users list
+      setBlockedUsers(prev => prev.filter(user => user.id !== userId));
+      
       toast({
-        title: "Success",
-        description: "User has been unblocked.",
+        title: "User Unblocked",
+        description: "The user has been unblocked successfully.",
       });
     } catch (error) {
       console.error('Error unblocking user:', error);
@@ -722,331 +823,375 @@ export default function Profile() {
     }
   };
 
-  // Handle clicking on a friend to view their profile
-  const handleFriendClick = (friendId: string) => {
-    setSelectedFriendId(friendId);
-  };
+  // Load blocked users when the blocked users section is opened
+  useEffect(() => {
+    if (showBlockedUsers) {
+      loadBlockedUsers();
+    }
+  }, [showBlockedUsers]);
 
-  // Handle going back from friend profile to main profile
-  const handleBackFromFriendProfile = () => {
-    setSelectedFriendId(null);
-  };
-
-  // If viewing a friend's profile, show FriendProfile component
-  if (selectedFriendId) {
-    return (
-      <FriendProfile 
-        friendId={selectedFriendId} 
-        onBack={handleBackFromFriendProfile}
-      />
-    );
-  }
-
-  // Render the profile page
   return (
     <WellnessLayout>
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto">
-          {/* Page Header with Notification Icon */}
-          <div className="flex items-center justify-between mb-8">
-            <h1 className="text-3xl font-bold text-foreground">Profile</h1>
-            <div className="relative">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleNotificationClick}
-                className="relative p-2"
-              >
-                <Bell className="w-5 h-5" />
-                {unreadCount > 0 && (
-                  <Badge
-                    variant="destructive"
-                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs"
-                  >
-                    {unreadCount}
-                  </Badge>
-                )}
-              </Button>
-            </div>
+      <div className="max-w-4xl mx-auto pt-5 pb-5">
+        <div className="space-y-6">
+          {/* Header with Notifications Button */}
+          <div className="flex justify-between items-center">
+            <h1 className="text-3xl font-bold">Profile</h1>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNotificationClick}
+              className="relative"
+            >
+              <Bell className="w-4 h-4 mr-2" />
+              Notifications
+              {unreadCount > 0 && (
+                <Badge 
+                  variant="destructive" 
+                  className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs"
+                >
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Badge>
+              )}
+            </Button>
           </div>
 
-          {/* Tab Navigation */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          {/* Friend Profile Modal */}
+          {selectedFriendId && (
+            <FriendProfile
+              friendId={selectedFriendId}
+              onClose={() => setSelectedFriendId(null)}
+            />
+          )}
+
+          {/* Tabs for Profile and Friends */}
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="profile">Profile Settings</TabsTrigger>
               <TabsTrigger value="friends">Friends</TabsTrigger>
             </TabsList>
 
-            {/* Profile Settings Tab */}
-            <TabsContent value="profile" className="space-y-6 mt-6">
-              {/* Main Content Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left Column - Personal Information */}
-                <WellnessCard className="lg:col-span-2">
-                  <div className="flex items-center gap-2 mb-6">
-                    <User className="w-5 h-5 text-primary" />
-                    <h2 className="text-xl font-semibold">Personal Information</h2>
+            {/* Profile Tab */}
+            <TabsContent value="profile" className="space-y-6">
+              {/* Basic Information Card */}
+              <WellnessCard title="Basic Information" icon={User}>
+                <div className="space-y-4">
+                  {/* Profile Picture Upload */}
+                  <div className="flex items-center gap-4">
+                    <Avatar className="w-20 h-20">
+                      <AvatarImage src={profileData.profilePicture} />
+                      <AvatarFallback>
+                        {profileData.name.split(' ').map(n => n[0]).join('')}
+                      </AvatarFallback>
+                    </Avatar>
+                    <AvatarUploader onUploadComplete={(url) => {
+                      setProfileData(prev => ({ ...prev, profilePicture: url }));
+                    }} />
                   </div>
 
-                  <div className="space-y-6">
-                    {/* Profile Picture Section */}
-                    <AvatarUploader />
-
-                    {/* Basic Info Form */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="name">Full Name</Label>
-                        <Input
-                          id="name"
-                          value={profileData.name}
-                          onChange={(e) => handleInputChange('name', e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="email">Email</Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          value={profileData.email}
-                          readOnly
-                          className="bg-gray-50 cursor-not-allowed"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </WellnessCard>
-
-                {/* Right Column - Privacy Settings */}
-                <WellnessCard>
-                  <h3 className="font-semibold mb-4">Privacy Settings</h3>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label>Social Features</Label>
-                        <p className="text-sm text-muted-foreground">Allow others to find and connect with you</p>
-                      </div>
-                      <Switch
-                        checked={profileData.socialPrivacy}
-                        onCheckedChange={(checked) => handleInputChange('socialPrivacy', checked)}
-                      />
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label>Activity Sharing</Label>
-                        <p className="text-sm text-muted-foreground">Share fitness goals and activity with friends</p>
-                      </div>
-                      <Switch
-                        checked={profileData.activitySharing}
-                        onCheckedChange={(checked) => {
-                          // Update state immediately for UI responsiveness
-                          handleInputChange('activitySharing', checked);
-                          // Save to database immediately
-                          handleActivitySharingChange(checked);
-                        }}
-                      />
-                    </div>
-                    
-                    {/* Add the Manage Blocked Users button */}
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start gap-2"
-                      onClick={() => {
-                        setShowBlockedUsers(true);
-                        loadBlockedUsers();
-                      }}
-                    >
-                      <UserMinus className="w-4 h-4" />
-                      Manage Blocked Users
-                    </Button>
-                  </div>
-                </WellnessCard>
-
-                {/* Full Width Bottom Card - Fitness Preferences */}
-                <WellnessCard className="lg:col-span-3">
-                  <h2 className="text-xl font-semibold mb-6">Fitness Goal Specifications</h2>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {/* Fitness Level */}
-                    <div>
-                      <Label>Fitness Level</Label>
-                      <Select value={profileData.fitnessLevel} onValueChange={(value) => handleInputChange('fitnessLevel', value)}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="beginner">Beginner</SelectItem>
-                          <SelectItem value="intermediate">Intermediate</SelectItem>
-                          <SelectItem value="advanced">Advanced</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Primary Goals */}
-                    <div>
-                      <Label>Primary Goals</Label>
-                      <Select value={profileData.primaryGoals} onValueChange={(value) => handleInputChange('primaryGoals', value)}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="weight-loss">Weight Loss</SelectItem>
-                          <SelectItem value="muscle-gain">Muscle Gain</SelectItem>
-                          <SelectItem value="endurance">Endurance</SelectItem>
-                          <SelectItem value="flexibility">Flexibility</SelectItem>
-                          <SelectItem value="general-health">General Health</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Exercise Preferences */}
-                    <div>
-                      <Label>Exercise Preferences</Label>
-                      <Select value={profileData.exercisePreferences} onValueChange={(value) => handleInputChange('exercisePreferences', value)}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="strength-training">Strength Training</SelectItem>
-                          <SelectItem value="cardio">Cardio</SelectItem>
-                          <SelectItem value="yoga">Yoga</SelectItem>
-                          <SelectItem value="pilates">Pilates</SelectItem>
-                          <SelectItem value="hiit">HIIT</SelectItem>
-                          <SelectItem value="sports">Sports</SelectItem>
-                          <SelectItem value="outdoor">Outdoor Activities</SelectItem>
-                          <SelectItem value="strength-cardio">Strength + Cardio</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Weekly Frequency */}
-                    <div>
-                      <Label>Weekly Frequency</Label>
-                      <Select value={profileData.weeklyFrequency} onValueChange={(value) => handleInputChange('weeklyFrequency', value)}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="2-3-days">2-3 days</SelectItem>
-                          <SelectItem value="4-5-days">4-5 days</SelectItem>
-                          <SelectItem value="6-7-days">6-7 days</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Session Duration */}
-                    <div>
-                      <Label>Session Duration</Label>
-                      <Select value={profileData.sessionDuration} onValueChange={(value) => handleInputChange('sessionDuration', value)}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="15-30-min">15-30 min</SelectItem>
-                          <SelectItem value="30-45-min">30-45 min</SelectItem>
-                          <SelectItem value="45-60-min">45-60 min</SelectItem>
-                          <SelectItem value="60-plus-min">60+ min</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Equipment Access */}
-                    <div>
-                      <Label>Equipment Access</Label>
-                      <Select value={profileData.equipmentAccess} onValueChange={(value) => handleInputChange('equipmentAccess', value)}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="home-bodyweight">Home (bodyweight)</SelectItem>
-                          <SelectItem value="home-basic">Home (basic equipment)</SelectItem>
-                          <SelectItem value="full-gym">Full gym</SelectItem>
-                          <SelectItem value="outdoor">Outdoor spaces</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {/* Physical Limitations Textarea */}
-                  <div className="mt-6">
-                    <Label htmlFor="limitations">Physical Limitations</Label>
-                    <Textarea
-                      id="limitations"
-                      placeholder="Please describe any physical limitations, injuries, or health conditions we should consider when planning your workouts..."
-                      value={profileData.physicalLimitations}
-                      onChange={(e) => handleInputChange('physicalLimitations', e.target.value)}
-                      className="mt-2"
+                  {/* Name Input */}
+                  <div>
+                    <Label htmlFor="name">Full Name</Label>
+                    <Input
+                      id="name"
+                      value={profileData.name}
+                      onChange={(e) => handleInputChange("name", e.target.value)}
+                      placeholder="Enter your full name"
                     />
                   </div>
 
-                  {/* Save Button */}
-                  <div className="flex justify-end mt-6">
-                    <Button variant="motivation" onClick={handleSave}>
-                      <Save className="w-4 h-4 mr-2" />
-                      Save Profile
-                    </Button>
+                  {/* Email Display (Read-only) */}
+                  <div>
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={profileData.email}
+                      disabled
+                      className="bg-muted"
+                    />
                   </div>
-                </WellnessCard>
-              </div>
+                </div>
+              </WellnessCard>
+
+              {/* Privacy Settings Card */}
+              <WellnessCard title="Privacy Settings" icon={User}>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="social-privacy">Social Features</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Allow others to find and connect with you
+                      </p>
+                    </div>
+                    <Switch
+                      id="social-privacy"
+                      checked={profileData.socialPrivacy}
+                      onCheckedChange={(checked) => handleInputChange("socialPrivacy", checked)}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="activity-sharing">Activity Sharing</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Share your workout posts with friends
+                      </p>
+                    </div>
+                    <Switch
+                      id="activity-sharing"
+                      checked={profileData.activitySharing}
+                      onCheckedChange={(checked) => handleInputChange("activitySharing", checked)}
+                    />
+                  </div>
+
+                  {/* Blocked Users Section */}
+                  <div className="pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowBlockedUsers(!showBlockedUsers)}
+                      className="w-full justify-between"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Ban className="w-4 h-4" />
+                        Blocked Users
+                      </span>
+                      {showBlockedUsers ? (
+                        <ChevronUp className="w-4 h-4" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4" />
+                      )}
+                    </Button>
+
+                    {showBlockedUsers && (
+                      <div className="mt-4 space-y-2">
+                        {loadingBlockedUsers ? (
+                          <div className="flex items-center justify-center py-4">
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            <span className="ml-2 text-sm text-muted-foreground">Loading blocked users...</span>
+                          </div>
+                        ) : blockedUsers.length > 0 ? (
+                          <div className="space-y-2 max-h-60 overflow-y-auto">
+                            {blockedUsers.map((user) => (
+                              <div
+                                key={user.id}
+                                className="flex items-center justify-between p-3 border rounded-lg"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <Avatar className="w-10 h-10">
+                                    <AvatarFallback>
+                                      {user.first_name[0]}{user.last_name[0]}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div>
+                                    <p className="font-medium text-sm">
+                                      {user.first_name} {user.last_name}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      @{user.username}
+                                    </p>
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleUnblockUser(user.id)}
+                                >
+                                  Unblock
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground text-center py-4">
+                            No blocked users
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </WellnessCard>
+
+              {/* Fitness Profile Card */}
+              <WellnessCard title="Fitness Profile" icon={User}>
+                <div className="space-y-4">
+                  {/* Fitness Level */}
+                  <div>
+                    <Label htmlFor="fitnessLevel">Fitness Level</Label>
+                    <Select
+                      value={profileData.fitnessLevel}
+                      onValueChange={(value) => handleInputChange("fitnessLevel", value)}
+                    >
+                      <SelectTrigger id="fitnessLevel">
+                        <SelectValue placeholder="Select your fitness level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="beginner">Beginner</SelectItem>
+                        <SelectItem value="intermediate">Intermediate</SelectItem>
+                        <SelectItem value="advanced">Advanced</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Primary Goals */}
+                  <div>
+                    <Label htmlFor="primaryGoals">Primary Goals</Label>
+                    <Textarea
+                      id="primaryGoals"
+                      value={profileData.primaryGoals}
+                      onChange={(e) => handleInputChange("primaryGoals", e.target.value)}
+                      placeholder="e.g., Weight loss, muscle gain, improved endurance"
+                      rows={3}
+                    />
+                  </div>
+
+                  {/* Exercise Preferences */}
+                  <div>
+                    <Label htmlFor="exercisePreferences">Exercise Preferences</Label>
+                    <Textarea
+                      id="exercisePreferences"
+                      value={profileData.exercisePreferences}
+                      onChange={(e) => handleInputChange("exercisePreferences", e.target.value)}
+                      placeholder="e.g., Running, weightlifting, yoga"
+                      rows={3}
+                    />
+                  </div>
+
+                  {/* Weekly Frequency */}
+                  <div>
+                    <Label htmlFor="weeklyFrequency">Weekly Frequency</Label>
+                    <Select
+                      value={profileData.weeklyFrequency}
+                      onValueChange={(value) => handleInputChange("weeklyFrequency", value)}
+                    >
+                      <SelectTrigger id="weeklyFrequency">
+                        <SelectValue placeholder="How often do you exercise?" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1-2">1-2 times per week</SelectItem>
+                        <SelectItem value="3-4">3-4 times per week</SelectItem>
+                        <SelectItem value="5+">5+ times per week</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Session Duration */}
+                  <div>
+                    <Label htmlFor="sessionDuration">Typical Session Duration</Label>
+                    <Select
+                      value={profileData.sessionDuration}
+                      onValueChange={(value) => handleInputChange("sessionDuration", value)}
+                    >
+                      <SelectTrigger id="sessionDuration">
+                        <SelectValue placeholder="How long are your workouts?" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="<30">Less than 30 minutes</SelectItem>
+                        <SelectItem value="30-60">30-60 minutes</SelectItem>
+                        <SelectItem value="60+">More than 60 minutes</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Equipment Access */}
+                  <div>
+                    <Label htmlFor="equipmentAccess">Equipment Access</Label>
+                    <Textarea
+                      id="equipmentAccess"
+                      value={profileData.equipmentAccess}
+                      onChange={(e) => handleInputChange("equipmentAccess", e.target.value)}
+                      placeholder="e.g., Home gym, commercial gym, bodyweight only"
+                      rows={2}
+                    />
+                  </div>
+
+                  {/* Physical Limitations */}
+                  <div>
+                    <Label htmlFor="physicalLimitations">Physical Limitations or Injuries</Label>
+                    <Textarea
+                      id="physicalLimitations"
+                      value={profileData.physicalLimitations}
+                      onChange={(e) => handleInputChange("physicalLimitations", e.target.value)}
+                      placeholder="Any injuries or limitations to be aware of?"
+                      rows={2}
+                    />
+                  </div>
+                </div>
+              </WellnessCard>
+
+              {/* Save Button */}
+              <Button onClick={handleSave} className="w-full">
+                <Save className="w-4 h-4 mr-2" />
+                Save Changes
+              </Button>
             </TabsContent>
 
             {/* Friends Tab */}
-            <TabsContent value="friends" className="space-y-4">
-              <WellnessCard>
-                <div className="flex items-center gap-2 mb-6">
-                  <Users className="w-5 h-5 text-primary" />
-                  <h2 className="text-xl font-semibold">My Friends</h2>
-                  <Badge variant="secondary" className="ml-2">
-                    {friends.length}
-                  </Badge>
-                </div>
-
+            <TabsContent value="friends" className="space-y-6">
+              <WellnessCard title="My Friends" icon={Users}>
                 {loadingFriends ? (
-                  <div className="flex justify-center py-8">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                    <span className="ml-2 text-muted-foreground">Loading friends...</span>
                   </div>
                 ) : friends.length > 0 ? (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {friends.map((friend) => (
-                      <div key={friend.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-                        <div 
-                          className="flex items-center space-x-3 flex-1 cursor-pointer"
-                          onClick={() => handleFriendClick(friend.id)}
-                        >
-                          <Avatar className="h-10 w-10">
-                            <AvatarImage src="" alt={friend.first_name} />
+                      <div
+                        key={friend.id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <Avatar 
+                            className="w-12 h-12 cursor-pointer" 
+                            onClick={() => setSelectedFriendId(friend.id)}
+                          >
+                            <AvatarImage src={friend.avatar_url} />
                             <AvatarFallback>
-                              {friend.first_name?.[0]}{friend.last_name?.[0]}
+                              {friend.first_name[0]}{friend.last_name[0]}
                             </AvatarFallback>
                           </Avatar>
-                          <div>
-                            <p className="font-medium">{friend.first_name} {friend.last_name}</p>
-                            <p className="text-sm text-muted-foreground">@{friend.username}</p>
+                          <div 
+                            className="flex-1 min-w-0 cursor-pointer"
+                            onClick={() => setSelectedFriendId(friend.id)}
+                          >
+                            <p className="font-medium truncate">
+                              {friend.first_name} {friend.last_name}
+                            </p>
+                            <p className="text-sm text-muted-foreground truncate">
+                              @{friend.username}
+                            </p>
                           </div>
                         </div>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleUnfriend(friend.id);
-                          }}
-                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                        >
-                          <UserX className="h-4 w-4 mr-2" />
-                          Unfriend
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleMessageFriend(friend.id, `${friend.first_name} ${friend.last_name}`)}
+                          >
+                            <MessageSquare className="w-4 h-4 mr-2" />
+                            Message
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleUnfriend(friend.id)}
+                          >
+                            <UserMinus className="w-4 h-4 mr-2" />
+                            Unfriend
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>No friends yet</p>
-                    <Button 
-                      variant="link" 
-                      className="mt-2"
-                      onClick={() => setActiveTab("social")}
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground mb-4">No friends yet</p>
+                    <Button
+                      variant="outline"
+                      onClick={() => navigate('/social')}
                     >
                       Find friends
                     </Button>
@@ -1078,13 +1223,15 @@ export default function Profile() {
                       className={`p-3 rounded-lg border ${
                         notification.read ? 'bg-muted/30' : 'bg-primary/5 border-primary/20'
                       } ${
-                        (notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply' || notification.type === 'post_mention') 
+                        (notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply' || notification.type === 'post_mention' || notification.type === 'message_mention') 
                           ? 'cursor-pointer hover:bg-muted/50 transition-colors' 
                           : ''
                       }`}
                       onClick={() => {
                         if (notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply' || notification.type === 'post_mention') {
                           handlePostNotificationClick(notification);
+                        } else if (notification.type === 'message_mention') {
+                          handleMessageMentionClick(notification);
                         }
                       }}
                     >
@@ -1102,6 +1249,11 @@ export default function Profile() {
                             {(notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply' || notification.type === 'post_mention') && (
                               <p className="text-xs text-primary mt-1">
                                 Click to view post →
+                              </p>
+                            )}
+                            {notification.type === 'message_mention' && (
+                              <p className="text-xs text-primary mt-1">
+                                Click to view message →
                               </p>
                             )}
                             
