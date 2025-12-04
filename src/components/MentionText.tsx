@@ -51,7 +51,7 @@ export function MentionText({ text, className = "", onMentionClick }: MentionTex
             <button
               key={i}
               onClick={(e) => handleMentionClick(e, username)}
-              className="text-blue-500 hover:underline font-medium cursor-pointer bg-transparent border-none p-0 inline"
+              className="text-blue-300 hover:text-blue-200 hover:underline font-medium cursor-pointer bg-transparent border-none p-0 inline"
             >
               {part}
             </button>

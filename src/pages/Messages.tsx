@@ -28,6 +28,8 @@ import { formatDistanceToNow } from "date-fns";
 import { WorkoutInvitationCard } from "@/components/WorkoutInvitationCard";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { MentionTextarea } from "@/components/MentionTextarea";
+import { MentionText } from "@/components/MentionText";
 
 export default function Messages() {
   const { user } = useAuth();
@@ -172,10 +174,16 @@ export default function Messages() {
         selectedRoom.chat_room_id,
         (message, event) => {
           if (event === 'INSERT') {
+            console.log('📨 Real-time INSERT received, ID:', message.id);
             setMessages(prev => {
               // Avoid duplicates - check if message already exists
               const exists = prev.some(msg => msg.id === message.id);
-              if (exists) return prev;
+              console.log('🔍 Real-time: Message exists in state?', exists);
+              if (exists) {
+                console.log('⚠️ Real-time: Message already in state, skipping');
+                return prev;
+              }
+              console.log('✅ Real-time: Adding message to state');
               return [...prev, message];
             });
             scrollToBottom();
@@ -200,8 +208,7 @@ export default function Messages() {
             );
           }
           
-          // Reload chat rooms to update last message preview
-          loadChatRooms();
+          // Note: Chat room list updates are handled by subscribeToChatRooms subscription
         }
       );
 
@@ -279,8 +286,7 @@ export default function Messages() {
   const markAsRead = async (roomId: string) => {
     try {
       await messageService.markMessagesAsRead(roomId);
-      // Refresh chat rooms to update unread count
-      loadChatRooms();
+      // Note: Chat room list updates are handled by subscribeToChatRooms subscription
     } catch (error) {
       console.error('Error marking messages as read:', error);
     }
@@ -293,15 +299,26 @@ export default function Messages() {
       setIsSending(true);
       const sentMessage = await messageService.sendMessage(selectedRoom.chat_room_id, newMessage.trim());
       
+      console.log('📤 Message sent, ID:', sentMessage.id);
+      
       // Add message to local state immediately (optimistic update)
-      setMessages(prev => [...prev, sentMessage]);
+      setMessages(prev => {
+        // Check if message already exists (from real-time subscription)
+        const exists = prev.some(msg => msg.id === sentMessage.id);
+        console.log('🔍 Message exists in state?', exists);
+        if (exists) {
+          console.log('⚠️ Message already in state, skipping optimistic update');
+          return prev;
+        }
+        console.log('✅ Adding message to state optimistically');
+        return [...prev, sentMessage];
+      });
       
       // Clear input and scroll to bottom
       setNewMessage("");
       scrollToBottom();
       
-      // Reload chat rooms to update last message preview
-      loadChatRooms();
+      // Note: Chat room list updates are handled by subscribeToChatRooms subscription
     } catch (error) {
       console.error('Error sending message:', error);
       setTimeout(() => {
@@ -636,7 +653,7 @@ export default function Messages() {
       setCalendarEvents([]);
       
       scrollToBottom();
-      loadChatRooms();
+      // Note: Chat room list updates are handled by subscribeToChatRooms subscription
       
       setTimeout(() => {
         toast.success('Workout invitation sent!');
@@ -941,9 +958,21 @@ export default function Messages() {
                                             : 'bg-muted'
                                         } ${isDeleted ? 'opacity-60 italic' : ''}`}
                                       >
-                                        <p className="text-sm whitespace-pre-wrap break-words">
-                                          {message.content}
-                                        </p>
+                                        {isDeleted ? (
+                                          <p className="text-sm whitespace-pre-wrap break-words">
+                                            {message.content}
+                                          </p>
+                                        ) : (
+                                          <MentionText 
+                                            text={message.content}
+                                            className="text-sm"
+                                            onMentionClick={(userId) => {
+                                              // Navigate to Messages page with selected chat
+                                              // This is already in Messages, so we can just scroll or highlight
+                                              console.log('Mentioned user clicked:', userId);
+                                            }}
+                                          />
+                                        )}
                                       </div>
                                   
                                   {/* Message Actions */}
@@ -1097,22 +1126,26 @@ export default function Messages() {
                       </div>
                     )}
                     
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Type a message..."
-                        className="flex-1"
-                        value={newMessage}
-                        onChange={(e) => {
-                          setNewMessage(e.target.value);
-                          handleTyping();
-                        }}
-                        onKeyPress={handleKeyPress}
-                        disabled={isSending}
-                      />
+                    <div className="flex gap-2 items-end">
+                      <div className="flex-1">
+                        <MentionTextarea
+                          placeholder="Type a message... (Type @ to mention someone)"
+                          value={newMessage}
+                          onChange={(value) => {
+                            setNewMessage(value);
+                            handleTyping();
+                          }}
+                          disabled={isSending}
+                          rows={1}
+                          onKeyDown={handleKeyPress}
+                          mentionableUsers={participants}
+                        />
+                      </div>
                       <Button 
                         variant="wellness" 
                         onClick={editingMessageId ? handleSaveEdit : handleSendMessage}
                         disabled={!newMessage.trim() || isSending}
+                        className="mb-1"
                       >
                         {editingMessageId ? (
                           <Check className="w-4 h-4" />

@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Calendar, MapPin, Clock, Check, X, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { messageService, type WorkoutInvitationData } from '@/services/messageService';
@@ -19,6 +20,7 @@ interface WorkoutInvitationCardProps {
     username: string;
     first_name?: string;
     last_name?: string;
+    avatar_url?: string;
   }>;
 }
 
@@ -75,10 +77,15 @@ export function WorkoutInvitationCard({
       : participant.username;
   };
 
+  const getParticipantDetails = (userId: string) => {
+    return participants.find(p => p.id === userId);
+  };
+
   const acceptedCount = workoutData.accepted_by?.length || 0;
   const declinedCount = workoutData.declined_by?.length || 0;
   const acceptedParticipants = workoutData.accepted_by?.map(getParticipantName) || [];
   const declinedParticipants = workoutData.declined_by?.map(getParticipantName) || [];
+  const acceptedParticipantDetails = workoutData.accepted_by?.map(getParticipantDetails).filter(Boolean) || [];
 
   // Debug: Log when accepted/declined counts change
   useEffect(() => {
@@ -105,6 +112,57 @@ export function WorkoutInvitationCard({
               Invited by {senderName}
             </p>
           </div>
+          
+          {/* Accepted Participants Avatars */}
+          {acceptedParticipantDetails.length > 0 && (
+            <div className="flex-shrink-0">
+              <TooltipProvider>
+                <div className="flex -space-x-2">
+                  {acceptedParticipantDetails.slice(0, 3).map((participant, idx) => (
+                    <Tooltip key={participant.id} delayDuration={200}>
+                      <TooltipTrigger asChild>
+                        <Avatar className="w-8 h-8 border-2 border-background ring-2 ring-green-500/30">
+                          <AvatarImage src={participant.avatar_url} />
+                          <AvatarFallback className="text-xs bg-green-100 text-green-700">
+                            {participant.first_name?.[0] || participant.username?.[0] || 'U'}
+                          </AvatarFallback>
+                        </Avatar>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p className="text-sm">
+                          {participant.first_name && participant.last_name
+                            ? `${participant.first_name} ${participant.last_name}`
+                            : participant.username}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ))}
+                  {acceptedParticipantDetails.length > 3 && (
+                    <Tooltip delayDuration={200}>
+                      <TooltipTrigger asChild>
+                        <div className="w-8 h-8 rounded-full border-2 border-background ring-2 ring-green-500/30 bg-green-100 flex items-center justify-center">
+                          <span className="text-xs font-medium text-green-700">
+                            +{acceptedParticipantDetails.length - 3}
+                          </span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <div className="text-sm">
+                          {acceptedParticipantDetails.slice(3).map((p, idx) => (
+                            <p key={p.id}>
+                              {p.first_name && p.last_name
+                                ? `${p.first_name} ${p.last_name}`
+                                : p.username}
+                            </p>
+                          ))}
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
+              </TooltipProvider>
+            </div>
+          )}
         </div>
 
         {/* Event Details */}

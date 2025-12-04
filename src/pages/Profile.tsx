@@ -456,6 +456,31 @@ export default function Profile() {
     });
   };
 
+  const handleMessageMentionClick = async (notification: Notification) => {
+    // Mark notification as read FIRST if not already
+    if (!notification.read) {
+      try {
+        await notificationService.markAsRead(notification.id);
+        setNotifications(prev => prev.map(n => 
+          n.id === notification.id ? { ...n, read: true } : n
+        ));
+        await refreshUnreadCount();
+      } catch (error) {
+        console.error('Failed to mark notification as read:', error);
+      }
+    }
+    
+    // Close the notifications modal
+    setShowNotifications(false);
+    
+    // Navigate to Messages page with the specific chat room
+    navigate('/messages', { 
+      state: { 
+        selectedChatId: notification.data?.chat_room_id 
+      } 
+    });
+  };
+
   const handleSendMotivationResponse = async () => {
     if (!selectedMotivationRequest || !motivationResponseMessage.trim()) {
       toast({
@@ -545,6 +570,8 @@ export default function Profile() {
         return "↩️";
       case "post_mention":
         return "📢";
+      case "message_mention":
+        return "💬";
       case "social":
         return "❤️";
       default:
@@ -1196,13 +1223,15 @@ export default function Profile() {
                       className={`p-3 rounded-lg border ${
                         notification.read ? 'bg-muted/30' : 'bg-primary/5 border-primary/20'
                       } ${
-                        (notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply' || notification.type === 'post_mention') 
+                        (notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply' || notification.type === 'post_mention' || notification.type === 'message_mention') 
                           ? 'cursor-pointer hover:bg-muted/50 transition-colors' 
                           : ''
                       }`}
                       onClick={() => {
                         if (notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply' || notification.type === 'post_mention') {
                           handlePostNotificationClick(notification);
+                        } else if (notification.type === 'message_mention') {
+                          handleMessageMentionClick(notification);
                         }
                       }}
                     >
@@ -1220,6 +1249,11 @@ export default function Profile() {
                             {(notification.type === 'post_like' || notification.type === 'post_comment' || notification.type === 'comment_reply' || notification.type === 'post_mention') && (
                               <p className="text-xs text-primary mt-1">
                                 Click to view post →
+                              </p>
+                            )}
+                            {notification.type === 'message_mention' && (
+                              <p className="text-xs text-primary mt-1">
+                                Click to view message →
                               </p>
                             )}
                             

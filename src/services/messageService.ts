@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { notificationService } from './notificationService';
 
 export interface ChatRoom {
   id: string;
@@ -73,6 +74,128 @@ export interface ChatRoomWithDetails {
 }
 
 class MessageService {
+  /**
+   * Extracts @mentions from text
+   * @param text - Text to extract mentions from
+   * @returns Array of usernames (without @ symbol)
+   */
+  private extractMentions(text: string): string[] {
+    const mentionRegex = /@(\w+)/g;
+    const mentions: string[] = [];
+    let match;
+    
+    while ((match = mentionRegex.exec(text)) !== null) {
+      mentions.push(match[1]); // Get username without @ symbol
+    }
+    
+    return [...new Set(mentions)]; // Remove duplicates
+  }
+
+  /**
+   * Processes mentions in a message
+   * @param messageId - ID of the message
+   * @param content - Content of the message
+   * @param senderId - ID of the message sender
+   * @param senderName - Name of the message sender
+   * @param chatRoomId - ID of the chat room
+   * @param chatRoomName - Name of the chat room
+   */
+  private async processMentions(
+    messageId: string,
+    content: string,
+    senderId: string,
+    senderName: string,
+    chatRoomId: string,
+    chatRoomName: string
+  ): Promise<void> {
+    try {
+      const usernames = this.extractMentions(content);
+      
+      if (usernames.length === 0) {
+        return;
+      }
+
+      console.log('📢 Found mentions in message:', usernames);
+
+      // Get user IDs for the mentioned usernames
+      const { data: mentionedUsers, error: usersError } = await supabase
+        .from('users')
+        .select('id, username')
+        .in('username', usernames);
+
+      if (usersError) {
+        console.error('❌ Failed to fetch mentioned users:', usersError);
+        return;
+      }
+
+      if (!mentionedUsers || mentionedUsers.length === 0) {
+        console.log('ℹ️ No valid users found for mentions');
+        return;
+      }
+
+      // Filter to only include users who are participants in the chat room
+      const { data: participants, error: participantsError } = await supabase
+        .from('chat_participants')
+        .select('user_id')
+        .eq('chat_room_id', chatRoomId)
+        .in('user_id', mentionedUsers.map(u => u.id));
+
+      if (participantsError) {
+        console.error('❌ Failed to fetch participants:', participantsError);
+        return;
+      }
+
+      const participantIds = new Set(participants?.map(p => p.user_id) || []);
+
+      // Insert mentions into message_mentions table
+      const mentionsToInsert = mentionedUsers
+        .filter(user => user.id !== senderId && participantIds.has(user.id)) // Don't mention yourself, only participants
+        .map(user => ({
+          message_id: messageId,
+          mentioned_user_id: user.id
+        }));
+
+      if (mentionsToInsert.length > 0) {
+        const { error: insertError } = await supabase
+          .from('message_mentions')
+          .insert(mentionsToInsert);
+
+        if (insertError) {
+          console.error('❌ Failed to insert mentions:', insertError);
+        } else {
+          console.log('✅ Mentions saved successfully');
+        }
+
+        // Send notifications to mentioned users
+        for (const user of mentionedUsers) {
+          if (user.id !== senderId && participantIds.has(user.id)) {
+            try {
+              await notificationService.createNotification({
+                user_id: user.id,
+                type: 'message_mention',
+                title: 'You were mentioned in a message',
+                message: `${senderName} mentioned you in ${chatRoomName}`,
+                read: false,
+                data: {
+                  message_id: messageId,
+                  chat_room_id: chatRoomId,
+                  sender_id: senderId,
+                  sender_name: senderName,
+                  chat_room_name: chatRoomName
+                }
+              });
+              console.log(`✅ Notification sent to @${user.username}`);
+            } catch (notifError) {
+              console.error(`❌ Failed to send notification to @${user.username}:`, notifError);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error processing mentions:', error);
+    }
+  }
+
   /**
    * Get all chat rooms for the current user
    */
@@ -231,6 +354,21 @@ class MessageService {
         .single();
 
       if (error) throw error;
+
+      // Get chat room name for mention notifications
+      const { data: chatRoom } = await supabase
+        .from('chat_rooms')
+        .select('name')
+        .eq('id', chatRoomId)
+        .single();
+
+      // Process @mentions in the message
+      if (data.sender) {
+        const senderName = `${data.sender.first_name || ''} ${data.sender.last_name || ''}`.trim() || data.sender.username;
+        const chatRoomName = chatRoom?.name || 'a chat';
+        await this.processMentions(data.id, content, user.id, senderName, chatRoomId, chatRoomName);
+      }
+
       return data;
     } catch (error) {
       console.error('Error sending message:', error);
@@ -491,6 +629,9 @@ class MessageService {
    */
   async updateMessage(messageId: string, content: string): Promise<Message> {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
       const { data, error } = await supabase
         .from('messages')
         .update({ content, updated_at: new Date().toISOString() })
@@ -508,6 +649,27 @@ class MessageService {
         .single();
 
       if (error) throw error;
+
+      // Delete old mentions and process new ones
+      await supabase
+        .from('message_mentions')
+        .delete()
+        .eq('message_id', messageId);
+
+      // Get chat room name for mention notifications
+      const { data: chatRoom } = await supabase
+        .from('chat_rooms')
+        .select('name')
+        .eq('id', data.chat_room_id)
+        .single();
+
+      // Process @mentions in the updated message
+      if (data.sender) {
+        const senderName = `${data.sender.first_name || ''} ${data.sender.last_name || ''}`.trim() || data.sender.username;
+        const chatRoomName = chatRoom?.name || 'a chat';
+        await this.processMentions(data.id, content, user.id, senderName, data.chat_room_id, chatRoomName);
+      }
+
       return data;
     } catch (error) {
       console.error('Error updating message:', error);
