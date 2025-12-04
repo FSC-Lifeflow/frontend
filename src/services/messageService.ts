@@ -30,11 +30,24 @@ export interface MessageReaction {
   hasReacted: boolean; // Whether current user has reacted
 }
 
+export interface WorkoutInvitationData {
+  event_id: string;
+  event_summary: string;
+  event_start: string;
+  event_end: string;
+  event_location?: string;
+  event_description?: string;
+  accepted_by?: string[]; // User IDs who accepted
+  declined_by?: string[]; // User IDs who declined
+}
+
 export interface Message {
   id: string;
   chat_room_id: string;
   sender_id: string;
   content: string;
+  message_type?: 'text' | 'workout_invitation'; // Type of message
+  metadata?: WorkoutInvitationData; // Additional data for special message types
   created_at: string;
   updated_at: string;
   is_deleted: boolean;
@@ -221,6 +234,104 @@ class MessageService {
       return data;
     } catch (error) {
       console.error('Error sending message:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send a workout invitation message to a chat room
+   */
+  async sendWorkoutInvitation(
+    chatRoomId: string,
+    workoutData: WorkoutInvitationData
+  ): Promise<Message> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const content = `📅 Workout Invitation: ${workoutData.event_summary}`;
+      
+      const { data, error } = await supabase
+        .from('messages')
+        .insert({
+          chat_room_id: chatRoomId,
+          sender_id: user.id,
+          content,
+          message_type: 'workout_invitation',
+          metadata: {
+            ...workoutData,
+            accepted_by: [],
+            declined_by: []
+          }
+        })
+        .select(`
+          *,
+          sender:users(
+            id,
+            username,
+            first_name,
+            last_name,
+            avatar_url
+          )
+        `)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error sending workout invitation:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update workout invitation response (accept/decline)
+   */
+  async updateWorkoutInvitationResponse(
+    messageId: string,
+    userId: string,
+    action: 'accept' | 'decline'
+  ): Promise<void> {
+    try {
+      // Get the current message
+      const { data: message, error: fetchError } = await supabase
+        .from('messages')
+        .select('metadata')
+        .eq('id', messageId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const metadata = message.metadata as WorkoutInvitationData;
+      const acceptedBy = metadata.accepted_by || [];
+      const declinedBy = metadata.declined_by || [];
+
+      // Remove user from both arrays first
+      const newAcceptedBy = acceptedBy.filter(id => id !== userId);
+      const newDeclinedBy = declinedBy.filter(id => id !== userId);
+
+      // Add to appropriate array
+      if (action === 'accept') {
+        newAcceptedBy.push(userId);
+      } else {
+        newDeclinedBy.push(userId);
+      }
+
+      // Update the message
+      const { error: updateError } = await supabase
+        .from('messages')
+        .update({
+          metadata: {
+            ...metadata,
+            accepted_by: newAcceptedBy,
+            declined_by: newDeclinedBy
+          }
+        })
+        .eq('id', messageId);
+
+      if (updateError) throw updateError;
+    } catch (error) {
+      console.error('Error updating workout invitation response:', error);
       throw error;
     }
   }

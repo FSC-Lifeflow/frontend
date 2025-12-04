@@ -392,10 +392,10 @@ export default function Profile() {
     
     // For comment replies, open single post view
     // For likes and comments, open My Posts
-    const isCommentReply = notification.type === 'comment_reply';
+    const shouldShowSinglePost = notification.type === 'comment_reply' || notification.type === 'post_mention';
     
     navigate('/social', { 
-      state: isCommentReply 
+      state: shouldShowSinglePost 
         ? { 
             viewSinglePost: true,
             postId: notification.data?.post_id 
@@ -756,7 +756,7 @@ export default function Profile() {
 
   return (
     <WellnessLayout>
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto pt-5 pb-5">
         <div className="space-y-6">
           {/* Header with Notifications Button */}
           <div className="flex justify-between items-center">

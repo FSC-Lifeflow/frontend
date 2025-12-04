@@ -16,13 +16,18 @@ import { toast } from "sonner";
 import { 
   messageService, 
   type ChatRoomWithDetails, 
-  type Message 
+  type Message,
+  type WorkoutInvitationData
 } from "@/services/messageService";
 import { friendService } from "@/services/friendService";
 import { type SearchUser } from "@/services/userService";
 import { supabase } from "@/lib/supabase";
-import { MessageSquare, Users, Search, Plus, Send, Loader2, Check, MoreVertical, Edit2, Trash2, Smile, Image as ImageIcon, Paperclip, X, Pencil } from "lucide-react";
+import { API_BASE_URL } from "@/lib/config";
+import { MessageSquare, Users, Search, Plus, Send, Loader2, Check, MoreVertical, Edit2, Trash2, Smile, Image as ImageIcon, Paperclip, X, Pencil, Calendar } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { WorkoutInvitationCard } from "@/components/WorkoutInvitationCard";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 export default function Messages() {
   const { user } = useAuth();
@@ -56,6 +61,13 @@ export default function Messages() {
   const reactionSubscriptionRef = useRef<any>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Workout invitation states
+  const [showWorkoutInviteModal, setShowWorkoutInviteModal] = useState(false);
+  const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
+  const [selectedCalendarEvent, setSelectedCalendarEvent] = useState<any | null>(null);
+  const [isLoadingCalendarEvents, setIsLoadingCalendarEvents] = useState(false);
+  const [isSendingInvite, setIsSendingInvite] = useState(false);
+
   // Fetch chat rooms
   useEffect(() => {
     loadChatRooms();
@@ -67,6 +79,64 @@ export default function Messages() {
       loadFriends();
     }
   }, [showNewChatModal]);
+
+  // Load calendar events when workout invite modal opens
+  useEffect(() => {
+    const loadCalendarEvents = async () => {
+      if (showWorkoutInviteModal) {
+        setIsLoadingCalendarEvents(true);
+        try {
+          const { data: { user: currentUser } } = await supabase.auth.getUser();
+          if (!currentUser) throw new Error('Not authenticated');
+
+          // Fetch events from backend API (same as Social page)
+          const now = new Date();
+          const timeMin = now.toISOString();
+          const timeMax = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000)).toISOString(); // Next 30 days
+          
+          const params = new URLSearchParams({
+            userId: currentUser.id,
+            timeMin,
+            timeMax,
+            maxResults: '50',
+          });
+          
+          const response = await fetch(`${API_BASE_URL}/api/google/calendar/events?${params.toString()}`);
+          
+          if (response.ok) {
+            const data = await response.json();
+            const events = data.items || [];
+            
+            // Filter for workout-related events
+            const workoutEvents = events.filter((event: any) => {
+              const summary = event.summary?.toLowerCase() || '';
+              return summary.includes('workout') || 
+                     summary.includes('gym') || 
+                     summary.includes('exercise') || 
+                     summary.includes('training') ||
+                     summary.includes('fitness') ||
+                     summary.includes('yoga') ||
+                     summary.includes('run') ||
+                     summary.includes('cycling') ||
+                     summary.includes('swimming');
+            });
+            
+            setCalendarEvents(workoutEvents);
+          } else {
+            // If not connected to Google Calendar, show empty state
+            setCalendarEvents([]);
+          }
+        } catch (error) {
+          console.error('Error loading calendar events:', error);
+          setCalendarEvents([]);
+        } finally {
+          setIsLoadingCalendarEvents(false);
+        }
+      }
+    };
+
+    loadCalendarEvents();
+  }, [showWorkoutInviteModal]);
 
   // Handle navigation state - auto-select chat if provided
   useEffect(() => {
@@ -110,8 +180,15 @@ export default function Messages() {
             });
             scrollToBottom();
           } else if (event === 'UPDATE') {
+            console.log('📝 Message UPDATE event received:', message);
             setMessages(prev => 
-              prev.map(msg => msg.id === message.id ? message : msg)
+              prev.map(msg => {
+                if (msg.id === message.id) {
+                  console.log('🔄 Updating message in state:', { old: msg, new: message });
+                  return message;
+                }
+                return msg;
+              })
             );
           } else if (event === 'DELETE') {
             setMessages(prev => 
@@ -530,6 +607,50 @@ export default function Messages() {
     }
   };
 
+  const handleSendWorkoutInvitation = async () => {
+    if (!selectedCalendarEvent || !selectedRoom || isSendingInvite) return;
+
+    try {
+      setIsSendingInvite(true);
+
+      const workoutData: WorkoutInvitationData = {
+        event_id: selectedCalendarEvent.id,
+        event_summary: selectedCalendarEvent.summary,
+        event_start: selectedCalendarEvent.start.dateTime || selectedCalendarEvent.start.date,
+        event_end: selectedCalendarEvent.end.dateTime || selectedCalendarEvent.end.date,
+        event_location: selectedCalendarEvent.location,
+        event_description: selectedCalendarEvent.description,
+      };
+
+      const sentMessage = await messageService.sendWorkoutInvitation(
+        selectedRoom.chat_room_id,
+        workoutData
+      );
+
+      // Add message to local state immediately (optimistic update)
+      setMessages(prev => [...prev, sentMessage]);
+      
+      // Close modal and reset
+      setShowWorkoutInviteModal(false);
+      setSelectedCalendarEvent(null);
+      setCalendarEvents([]);
+      
+      scrollToBottom();
+      loadChatRooms();
+      
+      setTimeout(() => {
+        toast.success('Workout invitation sent!');
+      }, 0);
+    } catch (error) {
+      console.error('Error sending workout invitation:', error);
+      setTimeout(() => {
+        toast.error('Failed to send workout invitation');
+      }, 0);
+    } finally {
+      setIsSendingInvite(false);
+    }
+  };
+
   const filteredRooms = chatRooms.filter(room =>
     room.chat_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -726,7 +847,18 @@ export default function Messages() {
                           )}
                         </div>
                       </div>
-                      
+
+                      {/* Invite to scheduled workout button */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowWorkoutInviteModal(true)}
+                        className="h-8 px-3"
+                      >
+                        <Calendar className="w-4 h-4 mr-2" />
+                        Invite to Workout
+                      </Button>
+
                       {/* Edit Chat Name Button */}
                       <Button
                         variant="ghost"
@@ -753,6 +885,8 @@ export default function Messages() {
                         {messages.map((message) => {
                           const isOwnMessage = message.sender_id === user?.id;
                           const isDeleted = message.is_deleted;
+                          const isWorkoutInvitation = message.message_type === 'workout_invitation';
+                          
                           return (
                             <div
                               key={message.id}
@@ -762,7 +896,7 @@ export default function Messages() {
                               onMouseEnter={() => setHoveredMessageId(message.id)}
                               onMouseLeave={() => setHoveredMessageId(null)}
                             >
-                              {!isOwnMessage && (
+                              {!isOwnMessage && !isWorkoutInvitation && (
                                 <Avatar className="w-8 h-8">
                                   <AvatarImage src={message.sender?.avatar_url} />
                                   <AvatarFallback>
@@ -771,27 +905,46 @@ export default function Messages() {
                                 </Avatar>
                               )}
                               <div
-                                className={`flex flex-col max-w-[70%] ${
-                                  isOwnMessage ? 'items-end' : 'items-start'
+                                className={`flex flex-col ${
+                                  isWorkoutInvitation ? 'w-full max-w-md' : `max-w-[70%] ${isOwnMessage ? 'items-end' : 'items-start'}`
                                 }`}
                               >
-                                {!isOwnMessage && (
+                                {!isOwnMessage && !isWorkoutInvitation && (
                                   <span className="text-xs text-muted-foreground mb-1">
                                     {message.sender?.first_name || message.sender?.username}
                                   </span>
                                 )}
-                                <div className="relative">
-                                  <div
-                                    className={`rounded-lg px-4 py-2 ${
-                                      isOwnMessage
-                                        ? 'bg-primary text-primary-foreground'
-                                        : 'bg-muted'
-                                    } ${isDeleted ? 'opacity-60 italic' : ''}`}
-                                  >
-                                    <p className="text-sm whitespace-pre-wrap break-words">
-                                      {message.content}
-                                    </p>
-                                  </div>
+                                
+                                {isWorkoutInvitation && message.metadata ? (
+                                  <>
+                                    <WorkoutInvitationCard
+                                      messageId={message.id}
+                                      workoutData={message.metadata}
+                                      senderId={message.sender_id}
+                                      senderName={message.sender?.first_name 
+                                        ? `${message.sender.first_name} ${message.sender.last_name || ''}`
+                                        : message.sender?.username || 'Someone'}
+                                      currentUserId={user?.id || ''}
+                                      participants={participants}
+                                    />
+                                    <span className="text-xs text-muted-foreground mt-1">
+                                      {formatMessageTime(message.created_at)}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="relative">
+                                      <div
+                                        className={`rounded-lg px-4 py-2 ${
+                                          isOwnMessage
+                                            ? 'bg-primary text-primary-foreground'
+                                            : 'bg-muted'
+                                        } ${isDeleted ? 'opacity-60 italic' : ''}`}
+                                      >
+                                        <p className="text-sm whitespace-pre-wrap break-words">
+                                          {message.content}
+                                        </p>
+                                      </div>
                                   
                                   {/* Message Actions */}
                                   {!isDeleted && hoveredMessageId === message.id && (
@@ -897,10 +1050,12 @@ export default function Messages() {
                                   </div>
                                 )}
                                 
-                                <span className="text-xs text-muted-foreground mt-1">
-                                  {formatMessageTime(message.created_at)}
-                                  {message.updated_at !== message.created_at && !isDeleted && ' (edited)'}
-                                </span>
+                                    <span className="text-xs text-muted-foreground mt-1">
+                                      {formatMessageTime(message.created_at)}
+                                      {message.updated_at !== message.created_at && !isDeleted && ' (edited)'}
+                                    </span>
+                                  </>
+                                )}
                               </div>
                             </div>
                           );
@@ -1213,6 +1368,142 @@ export default function Messages() {
                   <>
                     <Check className="w-4 h-4 mr-2" />
                     Save
+                  </>
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Workout Invitation Modal */}
+        <Dialog open={showWorkoutInviteModal} onOpenChange={(open) => {
+          setShowWorkoutInviteModal(open);
+          if (!open) {
+            setSelectedCalendarEvent(null);
+            setCalendarEvents([]);
+          }
+        }}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-primary" />
+                Invite to Scheduled Workout
+              </DialogTitle>
+              <DialogDescription>
+                Select a workout from your calendar to share with this chat.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              {isLoadingCalendarEvents ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                  <span className="ml-2 text-sm text-muted-foreground">Loading your calendar events...</span>
+                </div>
+              ) : calendarEvents.length > 0 ? (
+                <>
+                  <div className="space-y-2">
+                    <Label>Select a Workout Event</Label>
+                    <ScrollArea className="h-[400px] border rounded-lg p-2">
+                      <div className="space-y-2">
+                        {calendarEvents.map((event) => {
+                          const isSelected = selectedCalendarEvent?.id === event.id;
+                          const startDate = event.start.dateTime ? new Date(event.start.dateTime) : event.start.date ? new Date(event.start.date) : null;
+                          
+                          return (
+                            <div
+                              key={event.id}
+                              onClick={() => setSelectedCalendarEvent(event)}
+                              className={cn(
+                                "p-3 rounded-lg border cursor-pointer transition-all",
+                                isSelected ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/50"
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="font-medium text-sm truncate">{event.summary}</h4>
+                                  {event.description && (
+                                    <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                                      {event.description}
+                                    </p>
+                                  )}
+                                  <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                                    {startDate && (
+                                      <div className="flex items-center gap-1">
+                                        <Calendar className="w-3 h-3" />
+                                        <span>
+                                          {startDate.toLocaleDateString('en-US', { 
+                                            month: 'short', 
+                                            day: 'numeric',
+                                            hour: event.start.dateTime ? 'numeric' : undefined,
+                                            minute: event.start.dateTime ? '2-digit' : undefined
+                                          })}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {event.location && (
+                                      <div className="flex items-center gap-1 truncate">
+                                        <span className="truncate">{event.location}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                <Check
+                                  className={cn(
+                                    "w-5 h-5 flex-shrink-0",
+                                    isSelected ? "opacity-100 text-primary" : "opacity-0"
+                                  )}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                  
+                  {selectedCalendarEvent && (
+                    <div className="p-3 bg-muted rounded-lg">
+                      <p className="text-sm font-medium mb-1">Selected Workout:</p>
+                      <p className="text-sm text-muted-foreground">{selectedCalendarEvent.summary}</p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <Calendar className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-muted-foreground mb-2">No upcoming workout events found</p>
+                  <p className="text-sm text-muted-foreground">
+                    Connect your Google Calendar or create workout events to invite friends.
+                  </p>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowWorkoutInviteModal(false)}
+                disabled={isSendingInvite}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="wellness"
+                className="flex-1"
+                onClick={handleSendWorkoutInvitation}
+                disabled={!selectedCalendarEvent || isSendingInvite}
+              >
+                {isSendingInvite ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 mr-2" />
+                    Send Invitation
                   </>
                 )}
               </Button>

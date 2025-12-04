@@ -1478,15 +1478,6 @@ export default function Social() {
                   Invite to Scheduled Workout
                 </Button>
                 <Button 
-                  variant="zen" 
-                  size="sm" 
-                  className="w-full"
-                  onClick={() => setShowInviteModal(true)}
-                >
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Invite to Co-Workout
-                </Button>
-                <Button 
                   variant="motivation" 
                   size="sm" 
                   className="w-full"
@@ -1570,7 +1561,7 @@ export default function Social() {
                       )}
                       {isRequestingMotivation ? "Sending..." : "Ask Friends for Motivation"}
                     </Button>
-                    <Button 
+                    {/* <Button 
                       variant="outline" 
                       size="sm" 
                       className="w-full"
@@ -1583,7 +1574,7 @@ export default function Social() {
                     >
                       <Sparkles className="w-4 h-4 mr-2" />
                       Get AI Motivation
-                    </Button>
+                    </Button> */}
                   </div>
                 </div>
 
