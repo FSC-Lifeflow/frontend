@@ -129,41 +129,57 @@ export function setupGoogleRoutes(app, supabase, tokenService, GOOGLE_CLIENT_ID,
         console.log('New user created:', userId);
       }
 
-      // Generate Supabase session token
-      const { data: sessionData, error: sessionError } = await supabase.auth.admin.generateLink({
-        type: 'magiclink',
+      // Create a session for this user using admin API
+      const { data: sessionData, error: sessionError } = await supabase.auth.admin.createUser({
         email: googleUser.email,
+        email_confirm: true,
+        user_metadata: {
+          first_name: googleUser.given_name || '',
+          last_name: googleUser.family_name || '',
+          avatar_url: googleUser.picture,
+        },
       });
 
-      if (sessionError || !sessionData) {
-        console.error('Failed to generate session:', sessionError);
-        return res.status(500).send('Failed to create session');
+      // If user already exists, sign them in instead
+      let accessToken, refreshToken;
+      
+      if (sessionError && sessionError.message.includes('already registered')) {
+        // User exists, generate tokens using admin
+        const { data: tokenData, error: tokenError } = await supabase.auth.admin.generateLink({
+          type: 'magiclink',
+          email: googleUser.email,
+        });
+
+        if (tokenError || !tokenData) {
+          console.error('Failed to generate tokens:', tokenError);
+          return res.status(500).send('Failed to create session');
+        }
+
+        // Extract tokens from the magic link properties
+        accessToken = tokenData.properties?.access_token;
+        refreshToken = tokenData.properties?.refresh_token;
+      } else if (sessionData?.session) {
+        accessToken = sessionData.session.access_token;
+        refreshToken = sessionData.session.refresh_token;
       }
 
-      // Return success page with session info
-      res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Success</title>
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <style>
-            body { font-family: system-ui; text-align: center; padding: 50px; }
-            .success { color: #10b981; font-size: 48px; }
-          </style>
-        </head>
-        <body>
-          <div class="success">✓</div>
-          <h1>Login Successful!</h1>
-          <p>You can close this window and return to the app.</p>
-          <script>
-            setTimeout(() => {
-              window.close();
-            }, 2000);
-          </script>
-        </body>
-        </html>
-      `);
+      if (!accessToken || !refreshToken) {
+        console.error('No tokens generated');
+        return res.status(500).send('Failed to create session tokens');
+      }
+
+      console.log('Session tokens generated successfully');
+
+      // Return JSON with tokens that the app can use
+      res.json({
+        success: true,
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        user: {
+          id: userId,
+          email: googleUser.email,
+        }
+      });
     } catch (error) {
       console.error('Google OAuth login error:', error);
       res.status(500).send('Login failed');
