@@ -11,10 +11,13 @@ import { setupGoogleRoutes } from './routes/google.js';
 import { setupFitbitDataRoutes } from './routes/fitbitData.js';
 import { setupWorkoutNotificationRoutes } from './routes/workoutNotifications.js';
 
-dotenv.config({ path: '.env.server' });
+// Only load .env.server in development (Railway provides env vars directly)
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config({ path: '.env.server' });
+}
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 // Environment variables
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -27,13 +30,36 @@ const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
 
+// Log environment check
+console.log('Environment check:');
+console.log('- SUPABASE_URL:', SUPABASE_URL ? '✓' : '✗');
+console.log('- SUPABASE_SERVICE_ROLE_KEY:', SUPABASE_SERVICE_ROLE_KEY ? '✓' : '✗');
+console.log('- GOOGLE_CLIENT_ID:', GOOGLE_CLIENT_ID ? '✓' : '✗');
+console.log('- GOOGLE_CLIENT_SECRET:', GOOGLE_CLIENT_SECRET ? '✓' : '✗');
+
 // Initialize services - Use service role key for backend (bypasses RLS)
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-const tokenService = new TokenService(supabase, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, FITBIT_CLIENT_ID, FITBIT_CLIENT_SECRET);
+let supabase, tokenService;
+try {
+  supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  tokenService = new TokenService(supabase, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, FITBIT_CLIENT_ID, FITBIT_CLIENT_SECRET);
+  console.log('✓ Services initialized successfully');
+} catch (error) {
+  console.error('✗ Failed to initialize services:', error.message);
+  process.exit(1);
+}
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Health check endpoint
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'LifeFlow API is running' });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // ============================================
 // SETUP ROUTES
@@ -50,9 +76,6 @@ setupGoogleRoutes(app, supabase, tokenService, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_S
 
 // Fitbit data routes for n8n integration
 setupFitbitDataRoutes(app, supabase, N8N_WEBHOOK_URL);
-
-// Workout notification routes
-setupWorkoutNotificationRoutes(app, supabase);
 
 
 app.listen(PORT, () => {
