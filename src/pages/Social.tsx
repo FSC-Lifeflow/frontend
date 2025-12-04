@@ -435,6 +435,10 @@ export default function Social() {
             : p;
         setPosts(prev => prev.map(updatePost));
         setMyPosts(prev => prev.map(updatePost));
+        // Also update singlePost if it's the same post
+        if (singlePost?.id === post.id) {
+          setSinglePost(prev => prev ? { ...prev, is_liked_by_user: false, likes_count: (prev.likes_count || 1) - 1 } : null);
+        }
       } else {
         await postInteractionService.likePost(post.id);
         // Update post in state
@@ -444,6 +448,10 @@ export default function Social() {
             : p;
         setPosts(prev => prev.map(updatePost));
         setMyPosts(prev => prev.map(updatePost));
+        // Also update singlePost if it's the same post
+        if (singlePost?.id === post.id) {
+          setSinglePost(prev => prev ? { ...prev, is_liked_by_user: true, likes_count: (prev.likes_count || 0) + 1 } : null);
+        }
       }
     } catch (error: any) {
       console.error('❌ Error toggling like:', error);
@@ -455,7 +463,6 @@ export default function Social() {
     }
   };
 
-  // Open comments modal
   const handleOpenComments = async (post: UserPost) => {
     setSelectedPost(post);
     setShowCommentsModal(true);

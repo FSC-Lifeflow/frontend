@@ -167,6 +167,55 @@ export default function Profile() {
     }
   }, [activeTab]);
 
+  // Set up real-time subscription for notifications
+  useEffect(() => {
+    if (!user) return;
+
+    let subscriptionPromise: Promise<any> | null = null;
+
+    const setupSubscription = async () => {
+      subscriptionPromise = notificationService.subscribeToNotifications(
+        (notification, event) => {
+          console.log('🔔 Notification event received:', event, notification);
+          
+          if (event === 'INSERT') {
+            // Add new notification to the list
+            setNotifications(prev => {
+              // Avoid duplicates
+              const exists = prev.some(n => n.id === notification.id);
+              if (exists) return prev;
+              return [notification, ...prev]; // Add to beginning
+            });
+          } else if (event === 'UPDATE') {
+            // Update existing notification
+            setNotifications(prev =>
+              prev.map(n => (n.id === notification.id ? notification : n))
+            );
+          } else if (event === 'DELETE') {
+            // Remove deleted notification
+            setNotifications(prev =>
+              prev.filter(n => n.id !== notification.id)
+            );
+          }
+        }
+      );
+
+      const subscription = await subscriptionPromise;
+      return subscription;
+    };
+
+    const subscription = setupSubscription();
+
+    return () => {
+      subscription.then(sub => {
+        if (sub) {
+          console.log('🔌 Unsubscribing from notifications');
+          sub.unsubscribe();
+        }
+      });
+    };
+  }, [user]);
+
   // Fetch notifications when modal opens
   const fetchNotifications = async () => {
     setLoadingNotifications(true);

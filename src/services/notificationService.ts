@@ -154,5 +154,87 @@ export const notificationService = {
       console.error('❌ Create notification error:', error);
       throw error;
     }
+  },
+
+  /**
+   * Subscribe to real-time notification changes for the current user
+   * @param callback - Function to call when notifications change
+   * @returns Supabase subscription object
+   */
+  subscribeToNotifications(
+    callback: (notification: Notification, event: 'INSERT' | 'UPDATE' | 'DELETE') => void
+  ) {
+    return (async () => {
+      try {
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        
+        if (!currentUser) {
+          console.error('❌ No authenticated user for notification subscription');
+          return null;
+        }
+
+        console.log('🔔 Subscribing to notifications for user:', currentUser.id);
+        
+        const subscription = supabase
+          .channel(`notifications:${currentUser.id}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'notifications',
+              filter: `user_id=eq.${currentUser.id}`
+            },
+            (payload) => {
+              console.log('📨 New notification received (INSERT):', payload);
+              callback(payload.new as Notification, 'INSERT');
+            }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'notifications',
+              filter: `user_id=eq.${currentUser.id}`
+            },
+            (payload) => {
+              console.log('✏️ Notification updated (UPDATE):', payload);
+              callback(payload.new as Notification, 'UPDATE');
+            }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'DELETE',
+              schema: 'public',
+              table: 'notifications',
+              filter: `user_id=eq.${currentUser.id}`
+            },
+            (payload) => {
+              console.log('🗑️ Notification deleted (DELETE):', payload);
+              callback(payload.old as Notification, 'DELETE');
+            }
+          )
+          .subscribe((status, err) => {
+            if (status === 'SUBSCRIBED') {
+              console.log('✅ Successfully subscribed to notifications channel');
+            } else if (status === 'CHANNEL_ERROR') {
+              console.error('❌ Notification channel error:', err);
+            } else if (status === 'TIMED_OUT') {
+              console.error('⏱️ Notification subscription timed out');
+            } else if (status === 'CLOSED') {
+              console.log('🔒 Notification channel closed');
+            } else {
+              console.log('📡 Notification subscription status:', status);
+            }
+          });
+
+        return subscription;
+      } catch (error) {
+        console.error('❌ Error setting up notification subscription:', error);
+        return null;
+      }
+    })();
   }
 };

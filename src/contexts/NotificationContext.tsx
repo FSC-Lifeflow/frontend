@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { notificationService } from '@/services/notificationService';
 import { useAuth } from './AuthContext';
-import { supabase } from '@/lib/supabase';
 
 interface NotificationContextType {
   unreadCount: number;
@@ -39,36 +38,33 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     // Initial fetch
     refreshUnreadCount();
 
-    // Set up real-time subscription
-    const channel = supabase
-      .channel(`notifications:${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen to INSERT, UPDATE, DELETE
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${user.id}`
-        },
-        (payload) => {
-          console.log('📬 Real-time notification update:', payload);
+    // Set up real-time subscription using the notification service
+    let subscriptionPromise: Promise<any> | null = null;
+
+    const setupSubscription = async () => {
+      subscriptionPromise = notificationService.subscribeToNotifications(
+        (notification, event) => {
+          console.log('📬 Real-time notification update in context:', event, notification);
           
           // Refresh the unread count whenever notifications change
           refreshUnreadCount();
         }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ Subscribed to real-time notifications');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Real-time subscription error');
-        }
-      });
+      );
+
+      const subscription = await subscriptionPromise;
+      return subscription;
+    };
+
+    const subscription = setupSubscription();
 
     // Cleanup subscription on unmount or user change
     return () => {
-      console.log('🔌 Unsubscribing from real-time notifications');
-      supabase.removeChannel(channel);
+      subscription.then(sub => {
+        if (sub) {
+          console.log('🔌 Unsubscribing from real-time notifications in context');
+          sub.unsubscribe();
+        }
+      });
     };
   }, [user]);
 
