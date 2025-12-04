@@ -655,8 +655,8 @@ class MessageService {
         {
           event: '*',
           schema: 'public',
-          table: 'message_reactions',
-          filter: `message_id=in.(SELECT id FROM messages WHERE chat_room_id='${chatRoomId}')`
+          table: 'message_reactions'
+          // No filter - we'll filter in the callback since Realtime doesn't support subqueries
         },
         async (payload: any) => {
           console.log('⚡ Reaction change detected:', payload);
@@ -665,11 +665,27 @@ class MessageService {
           const messageId = payload.new?.message_id || payload.old?.message_id;
           if (!messageId) return;
 
+          // Check if this message belongs to the current chat room
+          const { data: message } = await supabase
+            .from('messages')
+            .select('chat_room_id')
+            .eq('id', messageId)
+            .single();
+
+          // Only process if the message is in the current chat room
+          if (message?.chat_room_id !== chatRoomId) {
+            console.log('⏭️ Skipping reaction - message not in current chat room');
+            return;
+          }
+
+          console.log('✅ Reaction is for current chat room, fetching updated reactions');
+
           // Fetch updated reactions for this message
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) return;
 
           const reactions = await this.getMessageReactions(messageId, user.id);
+          console.log('📊 Updated reactions:', reactions);
           callback(messageId, reactions);
         }
       )
