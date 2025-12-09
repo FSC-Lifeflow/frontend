@@ -142,7 +142,10 @@ export function useFitbit() {
 
       setState(prev => ({ 
         ...prev, 
-        data: parsedData,
+        data: {
+          ...prev.data,
+          ...parsedData,
+        },
         isLoading: false 
       }));
 
