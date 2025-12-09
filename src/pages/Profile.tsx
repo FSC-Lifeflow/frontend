@@ -86,6 +86,7 @@ export default function Profile() {
   const [profileData, setProfileData] = useState({
     name: "",
     email: "",
+    username: "",
     profilePicture: "",
     fitnessLevel: "",
     primaryGoals: "",
@@ -121,6 +122,7 @@ export default function Profile() {
           ...prev,
           name: `${user.first_name} ${user.last_name}`,
           email: user.email,
+          username: user.username || "",
           fitnessLevel: user.fitness_level || "",
           primaryGoals: user.primary_goals || "",
           exercisePreferences: user.exercise_preferences || "",

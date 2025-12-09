@@ -20,7 +20,9 @@ export function CaloriesChart() {
 
     // Fitbit returns an array of { dateTime: 'YYYY-MM-DD', value: '1234' } oldest->newest
     return series.map((d) => {
-      const date = new Date(d.date);
+      // Parse date parts to avoid timezone issues with YYYY-MM-DD strings
+      const [year, month, dayOfMonth] = d.date.split('-').map(Number);
+      const date = new Date(year, month - 1, dayOfMonth);
       const day = WEEKDAYS[date.getDay()];
       return { day, calories: d.calories };
     });
