@@ -47,7 +47,7 @@ export function UpNextWorkouts() {
       } else if (isTomorrow(date)) {
         return "Tomorrow (All day)";
       } else {
-        return format(date, "MMM d (All day)");
+        return format(date, "MMM d '(All day)'");
       }
     }
     return "No time specified";
