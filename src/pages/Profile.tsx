@@ -879,17 +879,9 @@ export default function Profile() {
               <WellnessCard title="Basic Information" icon={User}>
                 <div className="space-y-4">
                   {/* Profile Picture Upload */}
-                  <div className="flex items-center gap-4">
-                    <Avatar className="w-20 h-20">
-                      <AvatarImage src={profileData.profilePicture} />
-                      <AvatarFallback>
-                        {profileData.name.split(' ').map(n => n[0]).join('')}
-                      </AvatarFallback>
-                    </Avatar>
-                    <AvatarUploader onUploadComplete={(url) => {
-                      setProfileData(prev => ({ ...prev, profilePicture: url }));
-                    }} />
-                  </div>
+                  <AvatarUploader onUploadComplete={(url) => {
+                    setProfileData(prev => ({ ...prev, profilePicture: url }));
+                  }} />
 
                   {/* Name Input */}
                   <div>
