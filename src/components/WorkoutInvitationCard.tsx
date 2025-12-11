@@ -7,6 +7,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Calendar, MapPin, Clock, Check, X, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { messageService, type WorkoutInvitationData } from '@/services/messageService';
+import { coWorkoutService } from '@/services/coWorkoutService';
+import { WorkoutInvitationAcceptDialog } from './WorkoutInvitationAcceptDialog';
 import { toast } from 'sonner';
 
 interface WorkoutInvitationCardProps {
@@ -33,6 +35,7 @@ export function WorkoutInvitationCard({
   participants
 }: WorkoutInvitationCardProps) {
   const [isResponding, setIsResponding] = useState(false);
+  const [showAcceptDialog, setShowAcceptDialog] = useState(false);
   
   const isOwnInvitation = senderId === currentUserId;
   const hasAccepted = workoutData.accepted_by?.includes(currentUserId);
@@ -263,7 +266,7 @@ export function WorkoutInvitationCard({
                 <Button
                   variant="wellness"
                   size="sm"
-                  onClick={() => handleResponse('accept')}
+                  onClick={() => setShowAcceptDialog(true)}
                   disabled={isResponding}
                   className="flex-1"
                 >
@@ -306,6 +309,51 @@ export function WorkoutInvitationCard({
           </div>
         )}
       </CardContent>
+
+      {/* Workout Invitation Accept Dialog */}
+      {startDate && (
+        <WorkoutInvitationAcceptDialog
+          open={showAcceptDialog}
+          onOpenChange={setShowAcceptDialog}
+          invitationData={{
+            inviter_name: senderName,
+            workout_type: workoutData.event_summary || 'Workout',
+            workout_time: workoutData.event_start,
+            workout_duration: endDate ? Math.round((endDate.getTime() - startDate.getTime()) / 60000) : 60,
+            workout_place: workoutData.event_location,
+            workout_note: workoutData.event_description,
+          }}
+          onAccept={async (scheduledTime, duration) => {
+            try {
+              setIsResponding(true);
+              
+              // Accept the invitation and create calendar event
+              await coWorkoutService.acceptWorkoutInvitation(
+                {
+                  inviter_id: senderId,
+                  inviter_name: senderName,
+                  workout_type: workoutData.event_summary || 'Workout',
+                  workout_place: workoutData.event_location,
+                  workout_note: workoutData.event_description,
+                },
+                scheduledTime,
+                duration
+              );
+
+              // Update the invitation response in the message
+              await messageService.updateWorkoutInvitationResponse(messageId, currentUserId, 'accept');
+
+              toast.success('✅ Invitation accepted! Added to your calendar.');
+            } catch (error) {
+              console.error('Failed to accept invitation:', error);
+              toast.error('Failed to accept invitation. Please try again.');
+              throw error;
+            } finally {
+              setIsResponding(false);
+            }
+          }}
+        />
+      )}
     </Card>
   );
 }

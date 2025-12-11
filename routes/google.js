@@ -412,4 +412,174 @@ export function setupGoogleRoutes(app, supabase, tokenService, GOOGLE_CLIENT_ID,
       res.status(500).json({ error: 'Internal server error' });
     }
   });
+
+  // Create a new calendar event
+  app.post('/api/google/calendar/events', async (req, res) => {
+    try {
+      const { userId, summary, description, start, end, location } = req.body;
+
+      if (!userId) {
+        return res.status(400).json({ error: 'User ID required' });
+      }
+
+      if (!summary || !start || !end) {
+        return res.status(400).json({ error: 'Summary, start, and end are required' });
+      }
+
+      // Get valid token (auto-refresh if needed)
+      const accessToken = await tokenService.getValidGoogleToken(userId);
+
+      // Create event in primary calendar
+      const eventData = {
+        summary,
+        description,
+        start,
+        end,
+        location,
+      };
+
+      const response = await fetch(
+        'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(eventData),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Google Calendar create event error:', errorText);
+        return res.status(response.status).json({ error: 'Failed to create event', details: errorText });
+      }
+
+      const event = await response.json();
+      console.log(`Created calendar event for user ${userId}: ${event.id}`);
+      
+      res.json({ event });
+    } catch (error) {
+      console.error('Create calendar event error:', error);
+      if (error.code === 'TOKEN_EXPIRED') {
+        return res.status(401).json({ 
+          error: 'Google Calendar connection expired', 
+          message: error.message,
+          reconnect: true 
+        });
+      }
+      if (error.message.includes('not connected')) {
+        return res.status(401).json({ error: 'Google Calendar not connected' });
+      }
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Update an existing calendar event
+  app.patch('/api/google/calendar/events/:eventId', async (req, res) => {
+    try {
+      const { eventId } = req.params;
+      const { userId, summary, description, start, end, location } = req.body;
+
+      if (!userId) {
+        return res.status(400).json({ error: 'User ID required' });
+      }
+
+      // Get valid token (auto-refresh if needed)
+      const accessToken = await tokenService.getValidGoogleToken(userId);
+
+      // Build update data (only include provided fields)
+      const updateData = {};
+      if (summary !== undefined) updateData.summary = summary;
+      if (description !== undefined) updateData.description = description;
+      if (start !== undefined) updateData.start = start;
+      if (end !== undefined) updateData.end = end;
+      if (location !== undefined) updateData.location = location;
+
+      const response = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`,
+        {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updateData),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Google Calendar update event error:', errorText);
+        return res.status(response.status).json({ error: 'Failed to update event', details: errorText });
+      }
+
+      const event = await response.json();
+      console.log(`Updated calendar event for user ${userId}: ${event.id}`);
+      
+      res.json({ event });
+    } catch (error) {
+      console.error('Update calendar event error:', error);
+      if (error.code === 'TOKEN_EXPIRED') {
+        return res.status(401).json({ 
+          error: 'Google Calendar connection expired', 
+          message: error.message,
+          reconnect: true 
+        });
+      }
+      if (error.message.includes('not connected')) {
+        return res.status(401).json({ error: 'Google Calendar not connected' });
+      }
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Delete a calendar event
+  app.delete('/api/google/calendar/events/:eventId', async (req, res) => {
+    try {
+      const { eventId } = req.params;
+      const { userId } = req.body;
+
+      if (!userId) {
+        return res.status(400).json({ error: 'User ID required' });
+      }
+
+      // Get valid token (auto-refresh if needed)
+      const accessToken = await tokenService.getValidGoogleToken(userId);
+
+      const response = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Google Calendar delete event error:', errorText);
+        return res.status(response.status).json({ error: 'Failed to delete event', details: errorText });
+      }
+
+      console.log(`Deleted calendar event for user ${userId}: ${eventId}`);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Delete calendar event error:', error);
+      if (error.code === 'TOKEN_EXPIRED') {
+        return res.status(401).json({ 
+          error: 'Google Calendar connection expired', 
+          message: error.message,
+          reconnect: true 
+        });
+      }
+      if (error.message.includes('not connected')) {
+        return res.status(401).json({ error: 'Google Calendar not connected' });
+      }
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
 }

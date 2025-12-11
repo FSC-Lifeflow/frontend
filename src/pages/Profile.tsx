@@ -33,7 +33,10 @@ import { friendService, type SearchUser } from "@/services/friendService";
 import { messageService } from "@/services/messageService";
 import { AvatarUploader } from "@/components/AvatarUploader";
 import { WorkoutCompletionDialog } from "@/components/WorkoutCompletionDialog";
+import { WorkoutChallengeAcceptDialog } from "@/components/WorkoutChallengeAcceptDialog";
+import { WorkoutInvitationAcceptDialog } from "@/components/WorkoutInvitationAcceptDialog";
 import { supabase } from "@/lib/supabase";
+import { coWorkoutService } from "@/services/coWorkoutService";
 
 // Extend service types locally to match actual payload shape used in this component
 type NotificationWithRead = Notification & {
@@ -81,6 +84,10 @@ export default function Profile() {
   const [loadingBlockedUsers, setLoadingBlockedUsers] = useState(false);
   const [showWorkoutCompletionDialog, setShowWorkoutCompletionDialog] = useState(false);
   const [selectedWorkoutCompletion, setSelectedWorkoutCompletion] = useState<NotificationWithRead | null>(null);
+  const [showChallengeAcceptDialog, setShowChallengeAcceptDialog] = useState(false);
+  const [selectedChallenge, setSelectedChallenge] = useState<NotificationWithRead | null>(null);
+  const [showInvitationAcceptDialog, setShowInvitationAcceptDialog] = useState(false);
+  const [selectedInvitation, setSelectedInvitation] = useState<NotificationWithRead | null>(null);
 
   // Profile data with default values
   const [profileData, setProfileData] = useState({
@@ -1351,13 +1358,9 @@ export default function Profile() {
                                   <Button
                                     size="sm"
                                     variant="zen"
-                                    onClick={async () => {
-                                      // TODO: Implement accept invitation - add to calendar
-                                      toast({
-                                        title: "Coming Soon",
-                                        description: "Calendar integration is not yet implemented.",
-                                      });
-                                      await handleRemoveNotification(notification.id);
+                                    onClick={() => {
+                                      setSelectedInvitation(notification);
+                                      setShowInvitationAcceptDialog(true);
                                     }}
                                     className="h-7 px-3 text-xs flex-1 sm:flex-none"
                                   >
@@ -1545,13 +1548,9 @@ export default function Profile() {
                                   <Button
                                     size="sm"
                                     variant="motivation"
-                                    onClick={async () => {
-                                      // TODO: Implement accept challenge - add to calendar
-                                      toast({
-                                        title: "Coming Soon",
-                                        description: "Calendar integration is not yet implemented.",
-                                      });
-                                      await handleRemoveNotification(notification.id);
+                                    onClick={() => {
+                                      setSelectedChallenge(notification);
+                                      setShowChallengeAcceptDialog(true);
                                     }}
                                     className="h-7 px-3 text-xs flex-1 sm:flex-none"
                                   >
@@ -1878,6 +1877,109 @@ export default function Profile() {
                 }
                 await fetchNotifications();
                 await refreshUnreadCount();
+              }}
+            />
+          )}
+
+          {/* Workout Challenge Accept Dialog */}
+          {selectedChallenge?.data && (
+            <WorkoutChallengeAcceptDialog
+              open={showChallengeAcceptDialog}
+              onOpenChange={setShowChallengeAcceptDialog}
+              challengeData={{
+                challenger_name: selectedChallenge.data.challenger_name || 'Someone',
+                workout_form: selectedChallenge.data.workout_form || selectedChallenge.data.workout_type || 'workout',
+                time_option: selectedChallenge.data.time_option || 'flexible',
+                workout_time: selectedChallenge.data.workout_time,
+                workout_duration: selectedChallenge.data.workout_duration,
+                workout_note: selectedChallenge.data.workout_note,
+              }}
+              onAccept={async (scheduledTime, duration) => {
+                try {
+                  // Get challenge ID from notification data
+                  const challengeId = selectedChallenge.data.challenge_id;
+                  
+                  if (!challengeId) {
+                    throw new Error('Challenge ID not found');
+                  }
+
+                  // Accept the challenge and create calendar event
+                  await coWorkoutService.acceptWorkoutChallenge(
+                    challengeId,
+                    scheduledTime,
+                    duration
+                  );
+
+                  toast({
+                    title: "Challenge Accepted!",
+                    description: "The workout has been added to your calendar.",
+                  });
+
+                  // Remove notification and refresh
+                  await handleRemoveNotification(selectedChallenge.id);
+                  setSelectedChallenge(null);
+                  await fetchNotifications();
+                  await refreshUnreadCount();
+                } catch (error) {
+                  console.error('Failed to accept challenge:', error);
+                  toast({
+                    title: "Error",
+                    description: error instanceof Error ? error.message : "Failed to accept challenge",
+                    variant: "destructive",
+                  });
+                  throw error;
+                }
+              }}
+            />
+          )}
+
+          {/* Workout Invitation Accept Dialog */}
+          {selectedInvitation?.data && (
+            <WorkoutInvitationAcceptDialog
+              open={showInvitationAcceptDialog}
+              onOpenChange={setShowInvitationAcceptDialog}
+              invitationData={{
+                inviter_name: selectedInvitation.data.inviter_name || 'Someone',
+                workout_type: selectedInvitation.data.workout_type || 'workout',
+                workout_time: selectedInvitation.data.workout_time,
+                workout_duration: selectedInvitation.data.workout_duration || 60,
+                workout_place: selectedInvitation.data.workout_place,
+                workout_note: selectedInvitation.data.workout_note,
+              }}
+              onAccept={async (scheduledTime, duration) => {
+                try {
+                  // Accept the invitation and create calendar event
+                  await coWorkoutService.acceptWorkoutInvitation(
+                    {
+                      inviter_id: selectedInvitation.data.inviter_id,
+                      inviter_name: selectedInvitation.data.inviter_name,
+                      workout_type: selectedInvitation.data.workout_type,
+                      workout_place: selectedInvitation.data.workout_place,
+                      workout_note: selectedInvitation.data.workout_note,
+                    },
+                    scheduledTime,
+                    duration
+                  );
+
+                  toast({
+                    title: "Invitation Accepted!",
+                    description: "The workout has been added to your calendar.",
+                  });
+
+                  // Remove notification and refresh
+                  await handleRemoveNotification(selectedInvitation.id);
+                  setSelectedInvitation(null);
+                  await fetchNotifications();
+                  await refreshUnreadCount();
+                } catch (error) {
+                  console.error('Failed to accept invitation:', error);
+                  toast({
+                    title: "Error",
+                    description: error instanceof Error ? error.message : "Failed to accept invitation",
+                    variant: "destructive",
+                  });
+                  throw error;
+                }
               }}
             />
           )}

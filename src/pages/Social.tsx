@@ -44,6 +44,7 @@ import { friendService } from "@/services/friendService";
 import { postService, type Post, type UserPost } from "@/services/postService";
 import { notificationService } from "@/services/notificationService";
 import { postInteractionService, type PostComment } from "@/services/postInteractionService";
+import { coWorkoutService } from "@/services/coWorkoutService";
 import { supabase } from "@/lib/supabase";
 import { API_BASE_URL } from "@/lib/config";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -2251,44 +2252,50 @@ export default function Social() {
                       .eq('id', currentUser.id)
                       .single();
 
-                      // Create notifications for all challenged friends with workout details
-                      const notificationPromises = selectedFriends.map(friend =>
-                        notificationService.createNotification({
-                          user_id: friend.id,
-                          type: 'workout_challenge',
-                          title: 'Workout Challenge',
-                          message: challengeTimeOption === "set"
-                            ? `${userProfile?.first_name || 'Someone'} ${userProfile?.last_name || ''} challenged you to a ${challengeWorkoutForm} workout!`
-                            : `${userProfile?.first_name || 'Someone'} ${userProfile?.last_name || ''} challenged you to a ${challengeWorkoutForm} workout - complete it on your own time!`,
-                          data: {
-                            challenger_id: currentUser.id,
-                            challenger_name: `${userProfile?.first_name} ${userProfile?.last_name}`,
-                            challenger_username: userProfile?.username,
-                            challenge_type: 'workout_challenge',
-                            workout_form: challengeWorkoutForm,
-                            time_option: challengeTimeOption,
-                            workout_time: challengeTimeOption === "set" ? workoutTime : null,
-                            workout_duration: challengeTimeOption === "set" ? workoutDuration : null,
-                            workout_note: workoutNote || null
-                          },
-                          read: false
-                        }).catch(err => {
-                          console.warn(`⚠️ Could not create notification for ${friend.first_name}:`, err);
-                          return null;
-                        })
-                      );
-                      
-                      await Promise.all(notificationPromises);
+                      // Create challenges in database and send notifications
+                      const challengePromises = selectedFriends.map(async (friend) => {
+                        try {
+                          // Create challenge in database
+                          const challenge = await coWorkoutService.createWorkoutChallenge(
+                            friend.id,
+                            challengeWorkoutForm,
+                            challengeTimeOption as 'set' | 'flexible',
+                            {
+                              workoutTime: challengeTimeOption === "set" ? workoutTime : undefined,
+                              workoutDuration: challengeTimeOption === "set" ? parseInt(workoutDuration) : undefined,
+                              workoutNote: workoutNote || undefined,
+                            }
+                          );
 
-                      // TODO: Implement workout challenge functionality
-                      // This will create a workout challenge in the database
-                      // - Create a workout_challenges table with fields:
-                      //   - id, challenger_id, challenged_id, workout_type, challenge_date, 
-                      //     status (pending/accepted/declined/completed), winner_id
-                      // - Track workout metrics for both users
-                      // - Determine winner based on performance metrics
-                      // - Award points/badges to the winner
+                          // Create notification with challenge ID
+                          await notificationService.createNotification({
+                            user_id: friend.id,
+                            type: 'workout_challenge',
+                            title: 'Workout Challenge',
+                            message: challengeTimeOption === "set"
+                              ? `${userProfile?.first_name || 'Someone'} ${userProfile?.last_name || ''} challenged you to a ${challengeWorkoutForm} workout!`
+                              : `${userProfile?.first_name || 'Someone'} ${userProfile?.last_name || ''} challenged you to a ${challengeWorkoutForm} workout - complete it on your own time!`,
+                            data: {
+                              challenge_id: challenge.id,
+                              challenger_id: currentUser.id,
+                              challenger_name: `${userProfile?.first_name} ${userProfile?.last_name}`,
+                              challenger_username: userProfile?.username,
+                              challenge_type: 'workout_challenge',
+                              workout_form: challengeWorkoutForm,
+                              time_option: challengeTimeOption,
+                              workout_time: challengeTimeOption === "set" ? workoutTime : null,
+                              workout_duration: challengeTimeOption === "set" ? workoutDuration : null,
+                              workout_note: workoutNote || null
+                            },
+                            read: false
+                          });
+                        } catch (err) {
+                          console.warn(`⚠️ Could not create challenge for ${friend.first_name}:`, err);
+                        }
+                      });
                       
+                      await Promise.all(challengePromises);
+
                       const friendNames = selectedFriends.length === 1
                         ? `${selectedFriends[0].first_name} ${selectedFriends[0].last_name}`
                         : `${selectedFriends.length} friends`;

@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { notificationService } from './notificationService';
+import { calendarService } from './calendarService';
 
 /**
  * Co-Workout Service
@@ -168,69 +169,95 @@ export const coWorkoutService = {
   /**
    * Creates a workout challenge
    * @param challengedId - ID of the friend to challenge
-   * @param workoutType - Type of workout
-   * @param challengeDate - Date of the challenge
-   * @param challengeMetric - Metric to compete on (distance, reps, time, etc.)
+   * @param workoutForm - Form of workout (cardio, strength, etc.)
+   * @param timeOption - 'set' or 'flexible'
+   * @param options - Optional challenge details
    * @returns The created workout challenge
-   * 
-   * TODO: Implement this function
-   * 1. Get current user
-   * 2. Validate challenged user is a friend
-   * 3. Create workout_challenges record
-   * 4. Send notification to challenged user
-   * 5. Return the created challenge
    */
   async createWorkoutChallenge(
     challengedId: string,
-    workoutType: string,
-    challengeDate: Date,
-    challengeMetric: string
+    workoutForm: string,
+    timeOption: 'set' | 'flexible',
+    options?: {
+      workoutTime?: string;
+      workoutDuration?: number;
+      workoutNote?: string;
+    }
   ): Promise<WorkoutChallenge> {
-    throw new Error('Not implemented yet');
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    if (!currentUser) throw new Error('User not authenticated');
     
-    // const { data: { user: currentUser } } = await supabase.auth.getUser();
-    // if (!currentUser) throw new Error('User not authenticated');
+    const { data, error } = await supabase
+      .from('workout_challenges')
+      .insert({
+        challenger_id: currentUser.id,
+        challenged_id: challengedId,
+        workout_type: workoutForm,
+        workout_form: workoutForm,
+        time_option: timeOption,
+        scheduled_time: options?.workoutTime || null,
+        workout_duration: options?.workoutDuration || null,
+        workout_note: options?.workoutNote || null,
+        status: 'pending'
+      })
+      .select()
+      .single();
     
-    // const { data, error } = await supabase
-    //   .from('workout_challenges')
-    //   .insert({
-    //     challenger_id: currentUser.id,
-    //     challenged_id: challengedId,
-    //     workout_type: workoutType,
-    //     challenge_date: challengeDate.toISOString(),
-    //     challenge_metric: challengeMetric,
-    //     status: 'pending'
-    //   })
-    //   .select()
-    //   .single();
+    if (error) throw error;
     
-    // if (error) throw error;
-    
-    // // Create notification
-    // await supabase.from('notifications').insert({
-    //   user_id: challengedId,
-    //   type: 'workout_challenge',
-    //   title: 'Workout Challenge',
-    //   message: `You've been challenged to a ${workoutType} workout!`,
-    //   data: { workout_challenge_id: data.id }
-    // });
-    
-    // return data;
+    return data;
   },
 
   /**
-   * Accepts a workout invitation
-   * @param sessionId - ID of the workout session to accept
-   * 
-   * TODO: Implement this function
+   * Accepts a workout invitation and adds it to Google Calendar
+   * @param invitationData - Invitation details from notification
+   * @param scheduledTime - When the workout is scheduled (ISO 8601)
+   * @param duration - Duration in minutes
+   * @returns The calendar event ID
    */
-  async acceptWorkoutInvitation(sessionId: string): Promise<void> {
-    throw new Error('Not implemented yet');
-    
-    // await supabase
-    //   .from('workout_sessions')
-    //   .update({ status: 'accepted', updated_at: new Date().toISOString() })
-    //   .eq('id', sessionId);
+  async acceptWorkoutInvitation(
+    invitationData: {
+      inviter_id: string;
+      inviter_name: string;
+      workout_type: string;
+      workout_place?: string;
+      workout_note?: string;
+    },
+    scheduledTime: string,
+    duration: number
+  ): Promise<string> {
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    if (!currentUser) throw new Error('User not authenticated');
+
+    // Calculate end time
+    const startTime = new Date(scheduledTime);
+    const endTime = new Date(startTime.getTime() + duration * 60000);
+
+    // Create calendar event
+    const calendarEvent = await calendarService.createEvent({
+      userId: currentUser.id,
+      summary: `Workout with ${invitationData.inviter_name}: ${invitationData.workout_type}`,
+      description: invitationData.workout_note || `Co-workout session with ${invitationData.inviter_name}`,
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
+      location: invitationData.workout_place,
+    });
+
+    // Send notification to inviter
+    await notificationService.createNotification({
+      user_id: invitationData.inviter_id,
+      type: 'workout_invitation_accepted',
+      title: 'Invitation Accepted!',
+      message: `${currentUser.user_metadata?.first_name || 'Someone'} accepted your ${invitationData.workout_type} workout invitation!`,
+      read: false,
+      data: {
+        accepted_by_id: currentUser.id,
+        scheduled_time: scheduledTime,
+        workout_type: invitationData.workout_type,
+      },
+    });
+
+    return calendarEvent.id;
   },
 
   /**
@@ -249,18 +276,90 @@ export const coWorkoutService = {
   },
 
   /**
-   * Accepts a workout challenge
+   * Accepts a workout challenge and adds it to Google Calendar
    * @param challengeId - ID of the workout challenge to accept
-   * 
-   * TODO: Implement this function
+   * @param scheduledTime - When the workout is scheduled (ISO 8601)
+   * @param duration - Duration in minutes
+   * @returns The calendar event ID
    */
-  async acceptWorkoutChallenge(challengeId: string): Promise<void> {
-    throw new Error('Not implemented yet');
-    
-    // await supabase
-    //   .from('workout_challenges')
-    //   .update({ status: 'accepted', updated_at: new Date().toISOString() })
-    //   .eq('id', challengeId);
+  async acceptWorkoutChallenge(
+    challengeId: string,
+    scheduledTime: string,
+    duration: number
+  ): Promise<string> {
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    if (!currentUser) throw new Error('User not authenticated');
+
+    // Get challenge details
+    const { data: challenge, error: fetchError } = await supabase
+      .from('workout_challenges')
+      .select(`
+        *,
+        challenger:users!challenger_id(id, first_name, last_name, username)
+      `)
+      .eq('id', challengeId)
+      .single();
+
+    if (fetchError || !challenge) {
+      throw new Error('Challenge not found');
+    }
+
+    // Verify user is the challenged person
+    if (challenge.challenged_id !== currentUser.id) {
+      throw new Error('You are not authorized to accept this challenge');
+    }
+
+    // Calculate end time
+    const startTime = new Date(scheduledTime);
+    const endTime = new Date(startTime.getTime() + duration * 60000);
+
+    // Create calendar event
+    const calendarEvent = await calendarService.createEvent({
+      userId: currentUser.id,
+      summary: `Workout Challenge: ${challenge.workout_form || challenge.workout_type}`,
+      description: `Challenge from ${challenge.challenger.first_name} ${challenge.challenger.last_name}\n\n${challenge.workout_note || ''}`,
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
+      location: challenge.location,
+    });
+
+    // Update challenge status
+    const { error: updateError } = await supabase
+      .from('workout_challenges')
+      .update({
+        status: 'accepted',
+        accepted_at: new Date().toISOString(),
+        scheduled_time: scheduledTime,
+        workout_duration: duration,
+        calendar_event_id: calendarEvent.id,
+      })
+      .eq('id', challengeId);
+
+    if (updateError) {
+      // Try to clean up calendar event if database update fails
+      try {
+        await calendarService.deleteEvent(currentUser.id, calendarEvent.id);
+      } catch (cleanupError) {
+        console.error('Failed to cleanup calendar event:', cleanupError);
+      }
+      throw new Error('Failed to accept challenge');
+    }
+
+    // Send notification to challenger
+    await notificationService.createNotification({
+      user_id: challenge.challenger_id,
+      type: 'workout_challenge_accepted',
+      title: 'Challenge Accepted!',
+      message: `${currentUser.user_metadata?.first_name || 'Someone'} accepted your ${challenge.workout_form || challenge.workout_type} challenge!`,
+      read: false,
+      data: {
+        challenge_id: challengeId,
+        accepted_by_id: currentUser.id,
+        scheduled_time: scheduledTime,
+      },
+    });
+
+    return calendarEvent.id;
   },
 
   /**
