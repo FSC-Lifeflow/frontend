@@ -8,6 +8,11 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export function CaloriesChart() {
   const { isAuthenticated, data, isLoading, error, fetchCaloriesSeries } = useFitbit();
 
+  // Hide the chart if Fitbit is not connected
+  if (!isAuthenticated) {
+    return null;
+  }
+
   useEffect(() => {
     if (isAuthenticated) {
       fetchCaloriesSeries("7d");
