@@ -129,10 +129,10 @@ function Dashboard() {
                 <h3 className="font-semibold text-foreground">AI Coach Insights</h3>
               </div>
               <p className="text-muted-foreground text-sm mb-3">
-                Your consistency with morning workouts is paying off! Sleep quality improved with evening yoga.
+                Ask me about your recent health and workout activity for personalized insights!
               </p>
-              <Button variant="wellness" size="sm">
-                View Details
+              <Button variant="wellness" size="sm" onClick={() => setShowChat(true)}>
+                Let's Chat
               </Button>
             </WellnessCard>
           </div>
