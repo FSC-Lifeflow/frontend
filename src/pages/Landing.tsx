@@ -7,7 +7,6 @@ import {
   Calendar, 
   Brain, 
   Users, 
-  Play, 
   ArrowRight, 
   CheckCircle, 
   Zap, 
@@ -155,9 +154,13 @@ const Landing = () => {
               Start Your Fitness Journey
               <ArrowRight className="ml-2" />
             </Button>
-            <Button variant="outline" size="lg" className="text-lg px-8 py-4 h-auto border-primary/30 hover:border-primary">
-              <Play className="mr-2" />
-              Watch Demo
+            <Button 
+              variant="outline" 
+              size="lg" 
+              className="text-lg px-8 py-4 h-auto border-primary/30 hover:border-primary"
+              onClick={() => navigate('/signin')}
+            >
+              Sign In
             </Button>
           </div>
 
