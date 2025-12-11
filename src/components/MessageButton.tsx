@@ -11,6 +11,7 @@ interface MessageButtonProps {
   variant?: "default" | "outline" | "ghost" | "wellness" | "zen" | "motivation";
   size?: "default" | "sm" | "lg" | "icon";
   className?: string;
+  iconOnly?: boolean;
 }
 
 /**
@@ -22,7 +23,8 @@ export function MessageButton({
   userName,
   variant = "outline", 
   size = "sm",
-  className 
+  className,
+  iconOnly = false 
 }: MessageButtonProps) {
   const navigate = useNavigate();
   const [isCreatingChat, setIsCreatingChat] = useState(false);
@@ -59,13 +61,13 @@ export function MessageButton({
     >
       {isCreatingChat ? (
         <>
-          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-          Opening...
+          <Loader2 className={`w-4 h-4 ${iconOnly ? '' : 'mr-2'} animate-spin`} />
+          {!iconOnly && "Opening..."}
         </>
       ) : (
         <>
-          <MessageSquare className="w-4 h-4 mr-2" />
-          Message
+          <MessageSquare className={`w-4 h-4 ${iconOnly ? '' : 'mr-2'}`} />
+          {!iconOnly && "Message"}
         </>
       )}
     </Button>

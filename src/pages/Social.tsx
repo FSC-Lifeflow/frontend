@@ -1344,6 +1344,15 @@ export default function Social() {
                             onMentionClick={setViewingFriendId}
                           />
                           
+                          {/* Post Image */}
+                          {post.image_url && (
+                            <img 
+                              src={post.image_url} 
+                              alt="Post image" 
+                              className="w-full max-h-96 object-cover rounded-lg mb-3"
+                            />
+                          )}
+                          
                           {/* Like and Comment buttons */}
                           <div className="flex items-center gap-4">
                             <Button
@@ -1443,6 +1452,7 @@ export default function Social() {
                               variant="ghost"
                               size="sm"
                               className="h-8 w-8 p-0"
+                              iconOnly
                             />
                             <Button 
                               variant="zen" 
@@ -2561,6 +2571,15 @@ export default function Social() {
                             className="text-foreground mb-3 block" 
                             onMentionClick={setViewingFriendId}
                           />
+                          
+                          {/* Post Image */}
+                          {post.image_url && (
+                            <img 
+                              src={post.image_url} 
+                              alt="Post image" 
+                              className="w-full max-h-96 object-cover rounded-lg mb-3"
+                            />
+                          )}
                           
                           {/* Like and Comment Stats */}
                           <div className="flex items-center gap-4 mb-3">
