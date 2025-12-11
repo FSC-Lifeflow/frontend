@@ -1000,13 +1000,6 @@ export default function Social() {
     }
   }, [searchQuery]);
 
-  // Load posts on component mount
-  useEffect(() => {
-    if (!showPrivacyPrompt && !isCheckingSocialPrivacy) {
-      loadPosts();
-    }
-  }, [showPrivacyPrompt, isCheckingSocialPrivacy]);
-
   // Handle navigation from notifications
   useEffect(() => {
     const state = location.state as { 
