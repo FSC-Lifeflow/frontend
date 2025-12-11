@@ -8,11 +8,6 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export function CaloriesChart() {
   const { isAuthenticated, data, isLoading, error, fetchCaloriesSeries } = useFitbit();
 
-  // Hide the chart if Fitbit is not connected
-  if (!isAuthenticated) {
-    return null;
-  }
-
   useEffect(() => {
     if (isAuthenticated) {
       fetchCaloriesSeries("7d");
@@ -49,6 +44,11 @@ export function CaloriesChart() {
   const maxCalories = chartData.length ? Math.max(...chartData.map(d => d.calories)) : 0;
   const totalCalories = chartData.reduce((sum, d) => sum + d.calories, 0);
   const avgCalories = chartData.length > 0 ? Math.round(totalCalories / chartData.length) : 0;
+
+  // Hide the chart if Fitbit is not connected
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <WellnessCard className="animate-slide-up">
